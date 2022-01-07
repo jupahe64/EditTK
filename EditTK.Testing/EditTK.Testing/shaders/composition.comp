@@ -1,0 +1,70 @@
+#version 450
+
+layout(set = 0, binding = 0) uniform ub_Scene
+{
+    mat4 View;
+    vec3 CamPlaneNormal;
+    float CamPlaneOffset;
+    vec2 ViewportSize;
+    float ForceSolidHighlight;
+    float BlendAlpha;
+};
+
+layout(set = 0, binding = 1, rgba32f) uniform image2D OutputTexture;
+
+layout(set = 0, binding = 2) uniform texture2D  Color0;
+layout(set = 0, binding = 3) uniform texture2D  Depth0;
+layout(set = 0, binding = 4) uniform sampler    LinearSampler;
+layout(set = 0, binding = 5) uniform itexture2D Picking0;
+layout(set = 0, binding = 6) uniform sampler    PointSampler;
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+void main()
+{
+    int sampleOffsetX = 1;
+    int sampleOffsetY = 1;
+
+    ivec2 point_c = ivec2(gl_GlobalInvocationID.xy) + ivec2(sampleOffsetX* 0, sampleOffsetY* 0);
+    ivec2 point_u = ivec2(gl_GlobalInvocationID.xy) + ivec2(sampleOffsetX* 0, sampleOffsetY*-1);
+    ivec2 point_d = ivec2(gl_GlobalInvocationID.xy) + ivec2(sampleOffsetX* 0, sampleOffsetY* 1);
+    ivec2 point_l = ivec2(gl_GlobalInvocationID.xy) + ivec2(sampleOffsetX*-1, sampleOffsetY* 0);
+    ivec2 point_r = ivec2(gl_GlobalInvocationID.xy) + ivec2(sampleOffsetX* 1, sampleOffsetY* 0);
+
+
+
+    vec2 uv = gl_GlobalInvocationID.xy/ViewportSize;
+
+    vec4 col0 = texelFetch(sampler2D(Color0, LinearSampler), point_c, 0);
+
+    
+ 
+    float depth0_00 = texelFetch(sampler2D(Depth0, LinearSampler), point_c, 0).r;
+
+    int pick0_c = texelFetch(isampler2D(Picking0, PointSampler), point_c, 0).r;
+    int pick0_u = texelFetch(isampler2D(Picking0, PointSampler), point_u, 0).r;
+    int pick0_d = texelFetch(isampler2D(Picking0, PointSampler), point_d, 0).r;
+    int pick0_l = texelFetch(isampler2D(Picking0, PointSampler), point_l, 0).r;
+    int pick0_r = texelFetch(isampler2D(Picking0, PointSampler), point_r, 0).r;
+
+    float d = float(
+        pick0_c!=pick0_u || 
+        pick0_c!=pick0_d || 
+        pick0_c!=pick0_l || 
+        pick0_c!=pick0_r);
+
+    d = max(d,1-depth0_00*100);
+
+//    imageStore(
+//        OutputTexture,
+//        ivec2(gl_GlobalInvocationID.xy),
+//        col0 + vec4(uv,1.0,1.0)*clamp(d,0.0,1.0)
+//    );
+
+
+    imageStore(
+            OutputTexture,
+            ivec2(gl_GlobalInvocationID.xy),
+            col0 + vec4(1.0,1.0,0.6,1.0)*clamp(d,0.0,1.0)
+        );
+}
