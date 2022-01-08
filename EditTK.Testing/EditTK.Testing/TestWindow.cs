@@ -52,6 +52,7 @@ namespace EditTK.Testing
         private readonly GizmoDrawer _gizmoDrawer;
         private readonly ImageSharpTexture orientationCubeTexture;
         private readonly ShaderUniformLayout _sceneUniformLayout;
+        private readonly ShaderUniformLayout _compositeUniformLayout;
         private readonly ShaderUniformLayout _planeUniformLayout;
 
         private RgbaByte _pickedColor = RgbaByte.Clear;
@@ -76,6 +77,7 @@ namespace EditTK.Testing
         private PixelReader<float> _depthPixelReader;
         private DeviceBuffer? _sceneUB;
         private ResourceSet? _sceneSet;
+        private ResourceSet _compositeSet;
         private DeviceBuffer? _planeUB;
         private ResourceSet? _planeSet;
 
@@ -107,7 +109,7 @@ namespace EditTK.Testing
         private readonly string CheckerPlane_FragmentCode =
             File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "checkerPlane.frag"));
 
-        private readonly string Composition_FragmentCode =
+        private readonly string Composition_ComputeCode =
             File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "composition.comp"));
 
 
@@ -131,7 +133,7 @@ namespace EditTK.Testing
             _depthPixelReader = new PixelReader<float>(PixelFormat.D32_Float_S8_UInt);
 
             _sceneUniformLayout = ShaderUniformLayoutBuilder.Get()
-                .BeginUniformBuffer("ub_Scene", ShaderStages.Vertex | ShaderStages.Fragment | ShaderStages.Compute)
+                .BeginUniformBuffer("ub_Scene", ShaderStages.Vertex | ShaderStages.Fragment)
                     .AddUniform<Matrix4x4>("View")
                     .AddUniform<Vector3>("CamPlaneNormal")
                     .AddUniform<float>("CamPlaneOffset")
@@ -139,13 +141,16 @@ namespace EditTK.Testing
                     .AddUniform<float>("ForceSolidHighlight")
                     .AddUniform<float>("BlendAlpha")
                 .EndUniformBuffer()
-                .AddResourceUniform("OutputTexture", ResourceKind.TextureReadWrite, ShaderStages.Compute)
+                .GetLayout();
 
-                .AddTexture("Color0",        ShaderStages.Compute | ShaderStages.Fragment)
-                .AddTexture("Depth0",        ShaderStages.Compute | ShaderStages.Fragment)
-                .AddSampler("LinearSampler", ShaderStages.Compute | ShaderStages.Fragment)
-                .AddTexture("Picking0",      ShaderStages.Compute | ShaderStages.Fragment)
-                .AddSampler("PointSampler",  ShaderStages.Compute | ShaderStages.Fragment)
+            _compositeUniformLayout = ShaderUniformLayoutBuilder.Get()
+                .AddResourceUniform("ub_Scene", ResourceKind.UniformBuffer, ShaderStages.Compute)
+                .AddResourceUniform("OutputTexture", ResourceKind.TextureReadWrite, ShaderStages.Compute)
+                .AddTexture("Color0",        ShaderStages.Compute)
+                .AddTexture("Depth0",        ShaderStages.Compute)
+                .AddSampler("LinearSampler", ShaderStages.Compute)
+                .AddTexture("Picking0",      ShaderStages.Compute)
+                .AddSampler("PointSampler",  ShaderStages.Compute)
                 .GetLayout();
 
             _planeUniformLayout = ShaderUniformLayoutBuilder.Get()
@@ -173,10 +178,10 @@ namespace EditTK.Testing
                 );
 
             _compositeShader = new ComputeShader(
-                computeShaderBytes: Encoding.UTF8.GetBytes(Composition_FragmentCode),
+                computeShaderBytes: Encoding.UTF8.GetBytes(Composition_ComputeCode),
                 uniformLayouts: new[]
                 {
-                    _sceneUniformLayout
+                    _compositeUniformLayout
                 },
                 8, 8, 1
                 );
@@ -218,7 +223,9 @@ namespace EditTK.Testing
                 Width, Height, 1, 1, PixelFormat.R8_G8_B8_A8_UNorm, TextureUsage.Sampled | TextureUsage.Storage));
 
 
-            _sceneSet = _sceneUniformLayout.CreateResourceSet(_sceneUB!, _finalTexture, 
+            _sceneSet = _sceneUniformLayout.CreateResourceSet(_sceneUB!);
+
+            _compositeSet = _compositeUniformLayout.CreateResourceSet(_sceneUB!, _finalTexture, 
                 ResourceFactory.CreateTextureView(_sceneFB.ColorTextures[0]),
                 ResourceFactory.CreateTextureView(_sceneFB.DepthTexture),
                 GD!.LinearSampler,
@@ -241,13 +248,13 @@ namespace EditTK.Testing
             if (GD!.IsUvOriginTopLeft)
             {
                 dl.AddImage(
-                ImGuiRenderer.GetOrCreateImGuiBinding(GraphicsAPI.ResourceFactory, _finalTexture),
+                ImGuiRenderer.GetOrCreateImGuiBinding(GraphicsAPI.ResourceFactory, _sceneFB.ColorTextures[0]),
                 new Vector2(0, 0), new Vector2(Width, Height));
             }
             else
             {
                 dl.AddImage(
-                ImGuiRenderer.GetOrCreateImGuiBinding(GraphicsAPI.ResourceFactory, _finalTexture),
+                ImGuiRenderer.GetOrCreateImGuiBinding(GraphicsAPI.ResourceFactory, _sceneFB.ColorTextures[0]),
                 new Vector2(0, Height), new Vector2(Width, 0));
             }
 
@@ -477,7 +484,7 @@ namespace EditTK.Testing
             _compositeShader.Dispatch(cl,
                 (uint)Math.Ceiling(Width / 16f),
                 (uint)Math.Ceiling(Height / 16f), 1,
-                _sceneSet!);
+                _compositeSet!);
 
 
 
