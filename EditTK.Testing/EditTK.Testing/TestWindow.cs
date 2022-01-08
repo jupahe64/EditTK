@@ -248,13 +248,13 @@ namespace EditTK.Testing
             if (GD!.IsUvOriginTopLeft)
             {
                 dl.AddImage(
-                ImGuiRenderer.GetOrCreateImGuiBinding(GraphicsAPI.ResourceFactory, _sceneFB.ColorTextures[0]),
+                ImGuiRenderer.GetOrCreateImGuiBinding(GraphicsAPI.ResourceFactory, _finalTexture),
                 new Vector2(0, 0), new Vector2(Width, Height));
             }
             else
             {
                 dl.AddImage(
-                ImGuiRenderer.GetOrCreateImGuiBinding(GraphicsAPI.ResourceFactory, _sceneFB.ColorTextures[0]),
+                ImGuiRenderer.GetOrCreateImGuiBinding(GraphicsAPI.ResourceFactory, _finalTexture),
                 new Vector2(0, Height), new Vector2(Width, 0));
             }
 
