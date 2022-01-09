@@ -36,6 +36,24 @@ namespace EditTK.Graphics
         }
 
         /// <summary>
+        /// A vertex with a 3d position and a vertex color
+        /// </summary>
+        public struct VertexPositionColor
+        {
+            [VertexAttributeAtrribute("pos", VertexElementFormat.Float3)]
+            public Vector3 Posisiton;
+
+            [VertexAttributeAtrribute("col", VertexElementFormat.Float4)]
+            public Vector4 Color;
+
+            public VertexPositionColor(Vector3 pos, Vector4 col)
+            {
+                Posisiton = pos;
+                Color = col;
+            }
+        }
+
+        /// <summary>
         /// A vertex with a 2d position and a texture coordinate
         /// </summary>
         public struct VertexFullscreenQuad

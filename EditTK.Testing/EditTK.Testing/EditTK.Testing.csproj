@@ -26,6 +26,12 @@
     <None Update="Resources\OrientationCubeTex.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="shaders\arrowCube.frag">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="shaders\arrowCube.vert">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="shaders\checkerPlane.frag">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

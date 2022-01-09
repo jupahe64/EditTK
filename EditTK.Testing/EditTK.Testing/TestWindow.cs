@@ -64,7 +64,9 @@ namespace EditTK.Testing
         private float targetDistance = 10;
 
         private readonly GenericModel<int, VertexPositionTexture> _planeModel;
+        private readonly GenericModel<int, VertexPositionColor> _cubeModel;
         private readonly GenericModelRenderer<int, VertexPositionTexture> _planeRenderer;
+        private readonly GenericModelRenderer<int, VertexPositionColor> _cubeRenderer;
         private readonly ComputeShader _compositeShader;
 
         private readonly SimpleFrameBuffer _sceneFB = new SimpleFrameBuffer(
@@ -95,6 +97,14 @@ namespace EditTK.Testing
 
         private readonly string CheckerPlane_FragmentCode =
             File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "checkerPlane.frag"));
+
+
+        private readonly string ArrowCube_VertexCode =
+            File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "arrowCube.vert"));
+
+        private readonly string ArrowCube_FragmentCode =
+            File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "arrowCube.frag"));
+
 
         private readonly string Composition_ComputeCode =
             File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "composition.comp"));
@@ -147,16 +157,181 @@ namespace EditTK.Testing
                 .GetLayout();
 
 
-            var builder = new GenericModelBuilder<VertexPositionTexture>();
-                
-            builder.AddPlane(
-                new VertexPositionTexture(new Vector3(-100, 0, -100), Vector2.Zero),
-                new VertexPositionTexture(new Vector3(100, 0, -100), Vector2.Zero),
-                new VertexPositionTexture(new Vector3(-100, 0, 100), Vector2.Zero),
-                new VertexPositionTexture(new Vector3(100, 0, 100), Vector2.Zero)
-                );
+            #region Plane Model
+            {
+                var builder = new GenericModelBuilder<VertexPositionTexture>();
 
-            _planeModel = builder.GetModel();
+                builder.AddPlane(
+                    new VertexPositionTexture(new Vector3(-100, 0, -100), Vector2.Zero),
+                    new VertexPositionTexture(new Vector3(100, 0, -100), Vector2.Zero),
+                    new VertexPositionTexture(new Vector3(-100, 0, 100), Vector2.Zero),
+                    new VertexPositionTexture(new Vector3(100, 0, 100), Vector2.Zero)
+                    );
+
+                _planeModel = builder.GetModel();
+            }
+            #endregion
+
+
+            #region Cube Model
+            {
+
+                var builder = new GenericModelBuilder<VertexPositionColor>();
+
+                float BEVEL = 0.2f;
+
+                Vector4 defaultColor = new Vector4(0, 0, 0, 1);
+                Vector4 lineColor    = new Vector4(1, 1, 1, 1);
+
+                Matrix4x4 mtx;
+
+                #region Transform Helpers
+                void Reset() => mtx = Matrix4x4.CreateScale(0.5f);
+
+                static void Rotate(ref float x, ref float y)
+                {
+                    var _x = x;
+                    x = y;
+                    y = -_x;
+                }
+
+                void RotateOnX()
+                {
+                    Rotate(ref mtx.M12, ref mtx.M13);
+                    Rotate(ref mtx.M22, ref mtx.M23);
+                    Rotate(ref mtx.M32, ref mtx.M33);
+                }
+
+                void RotateOnY()
+                {
+                    Rotate(ref mtx.M11, ref mtx.M13);
+                    Rotate(ref mtx.M21, ref mtx.M23);
+                    Rotate(ref mtx.M31, ref mtx.M33);
+                }
+
+                void RotateOnZ()
+                {
+                    Rotate(ref mtx.M11, ref mtx.M12);
+                    Rotate(ref mtx.M21, ref mtx.M22);
+                    Rotate(ref mtx.M31, ref mtx.M32);
+                }
+
+                #endregion
+
+                float w = 1 - BEVEL;
+                float m = 1 - BEVEL * 0.3f;
+
+
+                #region Cube part Helpers
+                void Face()
+                {
+                    builder!.AddPlane(
+                        new(Vector3.Transform(new Vector3(-w, 1, -w), mtx), defaultColor),
+                        new(Vector3.Transform(new Vector3( w, 1, -w), mtx), defaultColor),
+                        new(Vector3.Transform(new Vector3(-w, 1,  w), mtx), defaultColor),
+                        new(Vector3.Transform(new Vector3( w, 1,  w), mtx), defaultColor)
+                    );
+                }
+
+                void Bevel()
+                {
+                    builder!.AddPlane(
+                        new(Vector3.Transform(new Vector3(-w, 1, w), mtx), defaultColor),
+                        new(Vector3.Transform(new Vector3( w, 1, w), mtx), defaultColor),
+                        new(Vector3.Transform(new Vector3(-w, m, m), mtx), lineColor),
+                        new(Vector3.Transform(new Vector3( w, m, m), mtx), lineColor)
+                    );
+
+                    builder!.AddPlane(
+                        new(Vector3.Transform(new Vector3(-w, m, m), mtx), lineColor),
+                        new(Vector3.Transform(new Vector3( w, m, m), mtx), lineColor),
+                        new(Vector3.Transform(new Vector3(-w, w, 1), mtx), defaultColor),
+                        new(Vector3.Transform(new Vector3( w, w, 1), mtx), defaultColor)
+                    );
+                }
+
+                void BevelCorner()
+                {
+                    void Piece(Vector3 v1, Vector3 v2, Vector3 v3)
+                    {
+                        Vector3 vm = new(m, m, m);
+
+                        builder!.AddTriangle(
+                            new(Vector3.Transform(v1, mtx), defaultColor),
+                            new(Vector3.Transform(v2, mtx), lineColor),
+                            new(Vector3.Transform(vm, mtx), lineColor)
+                        );
+
+                        builder!.AddTriangle(
+                            new(Vector3.Transform(v2, mtx), lineColor),
+                            new(Vector3.Transform(v3, mtx), defaultColor),
+                            new(Vector3.Transform(vm, mtx), lineColor)
+                        );
+                    }
+
+                    Piece(new Vector3(w, w, 1), new Vector3(w, m, m), new Vector3(w, 1, w));
+                    Piece(new Vector3(w, 1, w), new Vector3(m, m, w), new Vector3(1, w, w));
+                    Piece(new Vector3(1, w, w), new Vector3(m, w, m), new Vector3(w, w, 1));
+                }
+                #endregion
+
+
+                #region Construction
+
+                Reset();
+
+                #region Faces
+                Face();
+                RotateOnX();
+
+                for (int i = 0; i < 4; i++)
+                {
+                    Face();
+                    RotateOnY();
+                }
+                RotateOnX();
+                Face();
+                #endregion
+
+                Reset();
+
+                #region Edges/Bevels
+                for (int i = 0; i < 3; i++)
+                {
+                    for (int j = 0; j < 4; j++)
+                    {
+                        Bevel();
+                        RotateOnY();
+                    }
+
+                    RotateOnZ();
+                }
+                #endregion
+
+                Reset();
+
+                #region Corners/BevelCorners
+                for (int i = 0; i < 2; i++)
+                {
+                    for (int j = 0; j < 4; j++)
+                    {
+                        BevelCorner();
+                        RotateOnY();
+                    }
+
+                    RotateOnZ();
+                }
+                #endregion
+
+                #endregion
+
+
+                _cubeModel = builder.GetModel();
+
+            }
+            #endregion
+
+
 
 
             _planeRenderer = new GenericModelRenderer<int, VertexPositionTexture>(
@@ -169,6 +344,20 @@ namespace EditTK.Testing
                 },
                 outputDescription: _sceneFB.OutputDescription,
                 blendState: new BlendStateDescription(RgbaFloat.White, 
+                    BlendAttachmentDescription.AlphaBlend,
+                    BlendAttachmentDescription.Disabled)
+                );
+
+            _cubeRenderer = new GenericModelRenderer<int, VertexPositionColor>(
+                vertexShaderBytes: Encoding.UTF8.GetBytes(ArrowCube_VertexCode),
+                fragmentShaderBytes: Encoding.UTF8.GetBytes(ArrowCube_FragmentCode),
+                uniformLayouts: new[]
+                {
+                    _sceneUniformLayout,
+                    _planeUniformLayout
+                },
+                outputDescription: _sceneFB.OutputDescription,
+                blendState: new BlendStateDescription(RgbaFloat.White,
                     BlendAttachmentDescription.AlphaBlend,
                     BlendAttachmentDescription.Disabled)
                 );
@@ -471,6 +660,15 @@ namespace EditTK.Testing
 
             cl.InsertDebugMarker("drawing plane");
             _planeRenderer.Draw(cl, _planeModel, _sceneSet!, _planeSet!);
+
+
+            cl.UpdateBuffer(_planeUB, 0,
+                Matrix4x4.CreateScale(0.99f)*
+                Matrix4x4.CreateRotationY((float)(TimeTracker.Time * 0.1))*
+                Matrix4x4.CreateRotationX((float)(TimeTracker.Time * 0.1))*
+                Matrix4x4.CreateTranslation(0,2,0));
+
+            _cubeRenderer.Draw(cl, _cubeModel, _sceneSet!, _planeSet!);
 
 
             cl.SetFramebuffer(MainSwapchain.Framebuffer);
