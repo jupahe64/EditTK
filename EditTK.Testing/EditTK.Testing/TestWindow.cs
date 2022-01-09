@@ -63,8 +63,8 @@ namespace EditTK.Testing
         private float rotY = 0.4f;
         private float targetDistance = 10;
 
-        private readonly GenericModel<ushort, VertexPositionTexture> _planeModel;
-        private readonly GenericModelRenderer<ushort, VertexPositionTexture> _planeRenderer;
+        private readonly GenericModel<int, VertexPositionTexture> _planeModel;
+        private readonly GenericModelRenderer<int, VertexPositionTexture> _planeRenderer;
         private readonly ComputeShader _compositeShader;
 
         private readonly SimpleFrameBuffer _sceneFB = new SimpleFrameBuffer(
@@ -88,19 +88,6 @@ namespace EditTK.Testing
         private float _fps;
         private float _displayFps;
         private readonly SimpleCam _cam = new();
-
-
-        private readonly VertexPositionTexture[] _planeVertices = new[]
-            {
-                new VertexPositionTexture(new Vector3(-100, 0, -100), Vector2.Zero),
-                new VertexPositionTexture(new Vector3( 100, 0, -100), Vector2.Zero),
-                new VertexPositionTexture(new Vector3(-100, 0,  100), Vector2.Zero),
-                new VertexPositionTexture(new Vector3( 100, 0,  100), Vector2.Zero),
-            };
-        private readonly ushort[] _planeIndices = new ushort[]
-        {
-                0,1,2,1,3,2
-        };
 
 
         private readonly string CheckerPlane_VertexCode =
@@ -159,11 +146,20 @@ namespace EditTK.Testing
                 .EndUniformBuffer()
                 .GetLayout();
 
-            _planeModel = new GenericModel<ushort, VertexPositionTexture>(_planeVertices, _planeIndices);
+
+            var builder = new GenericModelBuilder<VertexPositionTexture>();
+                
+            builder.AddPlane(
+                new VertexPositionTexture(new Vector3(-100, 0, -100), Vector2.Zero),
+                new VertexPositionTexture(new Vector3(100, 0, -100), Vector2.Zero),
+                new VertexPositionTexture(new Vector3(-100, 0, 100), Vector2.Zero),
+                new VertexPositionTexture(new Vector3(100, 0, 100), Vector2.Zero)
+                );
+
+            _planeModel = builder.GetModel();
 
 
-
-            _planeRenderer = new GenericModelRenderer<ushort, VertexPositionTexture>(
+            _planeRenderer = new GenericModelRenderer<int, VertexPositionTexture>(
                 vertexShaderBytes: Encoding.UTF8.GetBytes(CheckerPlane_VertexCode),
                 fragmentShaderBytes: Encoding.UTF8.GetBytes(CheckerPlane_FragmentCode),
                 uniformLayouts: new[]
@@ -237,8 +233,6 @@ namespace EditTK.Testing
         {
             var dl = ImGui.GetBackgroundDrawList();
 
-
-            
 
             var rotMtx = Matrix4x4.CreateRotationY(rotY) * Matrix4x4.CreateRotationX(rotX);
 
