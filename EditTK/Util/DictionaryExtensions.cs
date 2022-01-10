@@ -11,7 +11,7 @@ namespace EditTK.Util
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static TValue GetOrCreate<TKey, TValue>(this Dictionary<TKey, TValue> self, TKey key) 
-            where TValue : class, new()
+            where TValue : new()
             where TKey : notnull
         {
             if (self.TryGetValue(key, out TValue? value))
@@ -30,7 +30,6 @@ namespace EditTK.Util
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static TValue GetOrCreate<TKey, TValue>(this Dictionary<TKey, TValue> self, TKey key, Func<TValue> creator)
-            where TValue : class
             where TKey : notnull
         {
             if (self.TryGetValue(key, out TValue? value))

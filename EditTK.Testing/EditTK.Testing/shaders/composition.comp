@@ -53,7 +53,7 @@ void main()
         pick0_c!=pick0_l || 
         pick0_c!=pick0_r);
 
-    d = max(d,1-depth0_00*100);
+    d = max(d,(1-depth0_00*100) * float(pick0_c==1));
 
 //    imageStore(
 //        OutputTexture,

@@ -57,16 +57,16 @@ namespace EditTK.Testing
 
         private RgbaByte _pickedColor = RgbaByte.Clear;
 
-        private int buttonCount = 1;
-
         private float rotX = 0.5f;
         private float rotY = 0.4f;
         private float targetDistance = 10;
 
         private readonly GenericModel<int, VertexPositionTexture> _planeModel;
         private readonly GenericModel<int, VertexPositionColor> _cubeModel;
+        private readonly GenericInstanceHolder<SimpleInstance> _cubeInstances;
+
         private readonly GenericModelRenderer<int, VertexPositionTexture> _planeRenderer;
-        private readonly GenericModelRenderer<int, VertexPositionColor> _cubeRenderer;
+        private readonly GenericInstanceRenderer<int, VertexPositionColor, SimpleInstance> _cubeRenderer;
         private readonly ComputeShader _compositeShader;
 
         private readonly SimpleFrameBuffer _sceneFB = new SimpleFrameBuffer(
@@ -110,8 +110,17 @@ namespace EditTK.Testing
             File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "composition.comp"));
 
 
+        Matrix4x4[] _testTransforms = new[]
+        {
+            Matrix4x4.CreateTranslation(0, 0, 0),
+            Matrix4x4.CreateTranslation(-3, 2, -4),
+            Matrix4x4.CreateTranslation(3, 0, -3),
+        };
+
+
         private string _givenWindowTitle;
         private bool _isDragging;
+        private bool _stressTest;
 
         public TestWindow(WindowCreateInfo wci) : base(wci)
         {
@@ -333,6 +342,9 @@ namespace EditTK.Testing
 
 
 
+            _cubeInstances = new GenericInstanceHolder<SimpleInstance>();
+
+
 
             _planeRenderer = new GenericModelRenderer<int, VertexPositionTexture>(
                 vertexShaderBytes: Encoding.UTF8.GetBytes(CheckerPlane_VertexCode),
@@ -348,7 +360,7 @@ namespace EditTK.Testing
                     BlendAttachmentDescription.Disabled)
                 );
 
-            _cubeRenderer = new GenericModelRenderer<int, VertexPositionColor>(
+            _cubeRenderer = new GenericInstanceRenderer<int, VertexPositionColor, SimpleInstance>(
                 vertexShaderBytes: Encoding.UTF8.GetBytes(ArrowCube_VertexCode),
                 fragmentShaderBytes: Encoding.UTF8.GetBytes(ArrowCube_FragmentCode),
                 uniformLayouts: new[]
@@ -585,6 +597,12 @@ namespace EditTK.Testing
                         100, 100, (int)Width, (int)Height, WindowState.Normal, "New Window")).Run();
                 ImGui.EndDisabled();
                 #endregion
+
+                #region New Window
+                ImGui.SetCursorPos(topLeft + new Vector2(600, 40));
+                if (ImGui.Button("Toogle Stress Test: "+(_stressTest?"On":"Off")))
+                    _stressTest = !_stressTest;
+                #endregion
             }
 
 
@@ -616,11 +634,18 @@ namespace EditTK.Testing
             if(viewHovered)
                 targetDistance -= MouseWheelDelta;
 
-            _gizmoDrawer.RotationGizmo(Matrix4x4.CreateTranslation(3.5f,0,0), 64, out _);
+            if (_stressTest)
+            {
+                _gizmoDrawer.TranslationGizmo(Matrix4x4.CreateTranslation(0, 0, 0), 64, out _);
+            }
+            else
+            {
+                _gizmoDrawer.RotationGizmo(_testTransforms[0], 64, out _);
 
-            _gizmoDrawer.ScaleGizmo(Matrix4x4.CreateTranslation(0, 0, 0), 64, out _);
+                _gizmoDrawer.ScaleGizmo(_testTransforms[1], 64, out _);
 
-            _gizmoDrawer.TranslationGizmo(Matrix4x4.CreateTranslation(-3.5f, 0, 0), 64, out _);
+                _gizmoDrawer.TranslationGizmo(_testTransforms[2], 64, out _);
+            }
 
 
             if (_gizmoDrawer.OrientationCube(new Vector2(Width - 100, Height - 100), 50, out Vector3 hoveredFacingDirection) && 
@@ -648,8 +673,10 @@ namespace EditTK.Testing
                 ));
 
 
+            float baseScale = _stressTest ? 3.75f : 0.75f;
+
             cl.UpdateBuffer(_planeUB, 0,
-                Matrix4x4.CreateScale((float)(0.75+Math.Sin(TimeTracker.Time) * 0.25)));
+                Matrix4x4.CreateScale((float)(baseScale + Math.Sin(TimeTracker.Time) * 0.25)));
 
 
             _sceneFB.Use(cl);
@@ -668,7 +695,42 @@ namespace EditTK.Testing
                 Matrix4x4.CreateRotationX((float)(TimeTracker.Time * 0.1))*
                 Matrix4x4.CreateTranslation(0,2,0));
 
-            _cubeRenderer.Draw(cl, _cubeModel, _sceneSet!, _planeSet!);
+
+            _cubeInstances.Clear();
+
+            
+
+            if(_stressTest)
+            {
+                //120,000 cubes
+
+                for (int i = 0; i < 300; i++)
+                {
+                    for (int j = 0; j < 400; j++)
+                    {
+                        Matrix4x4 mtx =
+                            Matrix4x4.CreateScale(Math.Max(0, (float)Math.Sin(TimeTracker.Time + i * j))) *
+                            Matrix4x4.CreateTranslation(300 - i * 2, 0, 400 - j * 2);
+
+
+
+                        _cubeInstances.Add(new SimpleInstance(mtx));
+
+
+                    }
+                }
+            }
+            else
+            {
+                _cubeInstances.Add(new SimpleInstance(_testTransforms[0]));
+                _cubeInstances.Add(new SimpleInstance(_testTransforms[1]));
+                _cubeInstances.Add(new SimpleInstance(_testTransforms[2]));
+            }
+            
+
+
+
+            _cubeRenderer.Draw(cl, _cubeModel, _cubeInstances, _sceneSet!, _planeSet!);
 
 
             cl.SetFramebuffer(MainSwapchain.Framebuffer);

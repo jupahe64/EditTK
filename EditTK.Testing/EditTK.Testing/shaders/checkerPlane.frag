@@ -75,7 +75,7 @@ void main()
     //outColor = vec4(1.0);
     //outPickingID = PickingID;
 
-    outPickingID = 0xFFFFF;
+    outPickingID = 1;
 
     gl_FragDepth =  fragDepth;
 }

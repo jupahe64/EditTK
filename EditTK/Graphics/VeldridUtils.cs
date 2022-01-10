@@ -18,25 +18,25 @@ namespace EditTK.Graphics
     public static class VeldridUtils
     {
         /// <summary>
-        /// A vertex with a 3d position and a texture coordinate
+        /// A vertex with a 3d position [<c>in vec3 pos</c>] and a texture coordinate [<c>in vec2 uv</c>]
         /// </summary>
         public struct VertexPositionTexture
         {
             [VertexAttributeAtrribute("pos", VertexElementFormat.Float3)]
-            public Vector3 Posisiton;
+            public Vector3 Position;
 
             [VertexAttributeAtrribute("uv", VertexElementFormat.Float2)]
             public Vector2 UV;
 
             public VertexPositionTexture(Vector3 pos, Vector2 uv)
             {
-                Posisiton = pos;
+                Position = pos;
                 UV = uv;
             }
         }
 
         /// <summary>
-        /// A vertex with a 3d position and a vertex color
+        /// A vertex with a 3d position [<c>in vec3 pos</c>] and a vertex color [<c>in vec4 col</c>]
         /// </summary>
         public struct VertexPositionColor
         {
@@ -50,6 +50,20 @@ namespace EditTK.Graphics
             {
                 Posisiton = pos;
                 Color = col;
+            }
+        }
+
+        /// <summary>
+        /// An instance with a Transform [<c>in mat4 Transform</c>]
+        /// </summary>
+        public struct SimpleInstance
+        {
+            [VertexAttributeAtrribute("Transform", VertexElementFormat.Float4, 4)]
+            public Matrix4x4 Transform;
+
+            public SimpleInstance(Matrix4x4 transform)
+            {
+                Transform = transform;
             }
         }
 

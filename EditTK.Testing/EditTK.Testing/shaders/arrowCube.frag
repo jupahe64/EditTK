@@ -22,15 +22,18 @@ layout(location = 1) out uint outPickingID;
 
 void main()
 {
-    float a = 0.25+pow(fragCol.r,2.0)*0.75;
-
     outColor = vec4(
-        mix(+
-            vec3(0,0.25,1),
-            vec3(0,0,   1),
-            fragPos.y + 0.5
+        mix(
+            mix(
+                vec3(0,0,0.5),
+                vec3(0,0.25,1),
+                fragPos.y*0.5 + 0.5
 
-        ) * a, 1);
+            )*0.3,
+            vec3(0,0.25,1),
+
+            pow(fragCol.r,2.0)
+        ), 1);
 
     vec2 uv = gl_FragCoord.xy/ViewportSize;
 
@@ -38,7 +41,7 @@ void main()
     //outColor = vec4(1.0);
     //outPickingID = PickingID;
 
-    outPickingID = 0xFFFF;
+    outPickingID = 2;
 
     gl_FragDepth =  fragDepth;
 }

@@ -1,17 +1,8 @@
 ﻿using EditTK.Graphics.Helpers.Internal;
-using System.ComponentModel;
-using System.Numerics;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using Veldrid;
 
 namespace EditTK.Graphics.Helpers
 {
-
-
-
     /// <summary>
     /// Provides all information to draw/render a specific type of model
     /// <para>see <see cref="Draw(CommandList, GenericModel{TIndex, TVertex}, ResourceSet[])"/></para>
@@ -19,12 +10,15 @@ namespace EditTK.Graphics.Helpers
     /// <typeparam name="TIndex">The index type used in the IndexBuffer</typeparam>
     /// <typeparam name="TVertex">The vertex type used in the VertexBuffer
     ///                     <para>Note: All fields need to have a <see cref="VertexAttributeAtrribute"/></para>
+    /// <typeparam name="TInstance">The instance type used in the InstanceBuffer
+    ///                     <para>Note: All fields need to have a <see cref="VertexAttributeAtrribute"/></para>
     /// </typeparam>
-    public class GenericModelRenderer<TIndex, TVertex> : GenericModelRendererBase<TIndex, TVertex>
+    public class GenericInstanceRenderer<TIndex, TVertex, TInstance> : GenericModelRendererBase<TIndex, TVertex>
         where TIndex : unmanaged
         where TVertex : unmanaged
+        where TInstance : unmanaged
     {
-        public GenericModelRenderer(
+        public GenericInstanceRenderer(
             byte[] vertexShaderBytes, byte[] fragmentShaderBytes,
             ShaderUniformLayout[] uniformLayouts, OutputDescription outputDescription,
             BlendStateDescription? blendState = null, DepthStencilStateDescription? depthState = null,
@@ -33,8 +27,10 @@ namespace EditTK.Graphics.Helpers
         {
         }
 
-        protected override VertexLayoutDescription[] GetVertexLayouts() => 
-            new [] { VertexFormatCache.GetVertexLayout<TVertex>() };
+        protected override VertexLayoutDescription[] GetVertexLayouts() => new[] { 
+            VertexFormatCache.GetVertexLayout<TVertex>(),
+            VertexFormatCache.GetInstanceLayout<TInstance>(),
+        };
 
         /// <summary>
         /// Draws a <see cref="GenericModel{TIndex, TVertex}"/> 
@@ -43,10 +39,16 @@ namespace EditTK.Graphics.Helpers
         /// </summary>
         /// <param name="cl">The <see cref="CommandList"/> to use for all involved gpu commands</param>
         /// <param name="model">The model to draw</param>
+        /// <param name="holder">The holder that has the instance data</param>
         /// <param name="resourceSets">The resource sets to submit to the shader(s), 
         /// the order should match the set slot in the shader!</param>
-        public void Draw(CommandList cl, GenericModel<TIndex, TVertex> model, params ResourceSet[] resourceSets)
+        public void Draw(CommandList cl, GenericModel<TIndex, TVertex> model, GenericInstanceHolder<TInstance> holder, params ResourceSet[] resourceSets)
         {
+            if(holder.Count == 0)
+                return;
+
+            holder.UpdateInstanceBuffer(cl);
+
             EnsureResourcesCreated();
 
             model.EnsureResourcesCreated();
@@ -60,9 +62,10 @@ namespace EditTK.Graphics.Helpers
             }
 
             cl.SetVertexBuffer(0, model.VertexBuffer);
+            cl.SetVertexBuffer(1, holder.InstanceBuffer);
             cl.SetIndexBuffer(model.IndexBuffer, model.IndexFormat);
 
-            cl.DrawIndexed((uint)model.Indices.Length);
+            cl.DrawIndexed((uint)model.Indices.Length, (uint)holder.Count, 0,0,0);
         }
     }
 }
