@@ -38,7 +38,7 @@ namespace EditTK.Graphics.Helpers
                     var before = GD;
 
                     if (!GD!.WaitForFence(_commandListFence, new TimeSpan(0, 0, 0, 
-                        seconds: 0, milliseconds:10)))
+                        seconds: 0, milliseconds:100)))
                         continue;
 
                     if (GD != before)
