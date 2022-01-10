@@ -35,19 +35,30 @@ namespace EditTK.Graphics.Helpers
 
                 try
                 {
+                    var before = GD;
+
                     if (!GD!.WaitForFence(_commandListFence, new TimeSpan(0, 0, 0, 
                         seconds: 0, milliseconds:10)))
                         continue;
+
+                    if (GD != before)
+                        continue;
+
+                    var view = GD.Map<TPixel>(_stagingTexture, MapMode.Read);
+                    TPixel pixel = view[0];
+                    GD.Unmap(_stagingTexture);
+                    _onPixelRead!(pixel);
                 }
-                catch (ObjectDisposedException)
+                catch (Exception e)
                 {
-                    return;
+                    //this thing is very prone to exceptions, since it's a parallel thread
+                    //but we don't really need to worry about them
+
+                    Console.WriteLine("Failed to read pixel: " + e);
+                    continue;
                 }
 
-                var view = GD.Map<TPixel>(_stagingTexture, MapMode.Read);
-                TPixel pixel = view[0];
-                GD.Unmap(_stagingTexture);
-                _onPixelRead!(pixel);
+                
             }
         }
         #endregion
