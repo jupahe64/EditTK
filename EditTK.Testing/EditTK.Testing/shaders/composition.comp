@@ -8,6 +8,7 @@ layout(set = 0, binding = 0) uniform ub_Scene
     vec2 ViewportSize;
     float ForceSolidHighlight;
     float BlendAlpha;
+    vec4 HoverColor;
 };
 
 layout(set = 0, binding = 1, rgba32f) uniform image2D OutputTexture;
@@ -97,12 +98,61 @@ void main()
     float lineOpacity = max(0.5,smoothstep(-0.001,0, closestDepth0-closestDepth1));
 
 
+
+
+
+
+
+
+    //------------------ hover highlight ----------------------
+
+    const float line_width = 3.0;
+
+    float min_dist = line_width;
+    
+    const int sampleR = 3;
+        
+    for(int x = -sampleR; x < sampleR; x ++)
+        for(int y = -sampleR; y < sampleR; y ++)
+        {
+            ivec2 texelPos = point_c + ivec2(x,y);
+
+            if(texelPos.x < 0 || texelPos.y < 0 || texelPos.x >= ViewportSize.x-1 || texelPos.y >= ViewportSize.y-1)
+                continue;
+            
+            bool pCenter = texelFetch(sampler2D(Depth1, LinearSampler), texelPos, 0).r == 0.0;
+
+            bool pRight  = texelFetch(sampler2D(Depth1, LinearSampler), texelPos + ivec2(1, 0), 0).r == 0.0;
+
+            bool pBottom = texelFetch(sampler2D(Depth1, LinearSampler), texelPos + ivec2(0, 1), 0).r == 0.0;
+            
+            if(pCenter != pRight || pCenter != pBottom)
+            {
+                float dist = length(vec2(x+0.5,y+0.5));
+
+                float mind  = min(min_dist,dist);
+
+                min_dist  = mix(min_dist, mind, 0.2);
+            }
+        }
+
+    bool isHoveredPart = depth1_c == 0.0;
+
+    float hoverOverlay = isHoveredPart ? 0.6 : 0.0;
+    
+    hoverOverlay = mix(hoverOverlay, 1.0, smoothstep(line_width,line_width-1.0, min_dist)); 
+
+
+
+    vec3 mainOut = mix(col0.rgb, closestCol1.rgb, 
+            
+            closestCol1.a*isEdge*lineOpacity);
+
+
     imageStore(
             OutputTexture,
             ivec2(gl_GlobalInvocationID.xy),
-            vec4(mix(col0.rgb, closestCol1.rgb, 
-            
-            closestCol1.a*isEdge*lineOpacity),1)
+            vec4(mix(mainOut,HoverColor.rgb,hoverOverlay*HoverColor.a), 1.0)
         );
 
 //        imageStore(

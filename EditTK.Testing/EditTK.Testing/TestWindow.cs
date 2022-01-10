@@ -36,8 +36,9 @@ namespace EditTK.Testing
             public Vector2 ViewportSize;
             public float ForceSolidHighlight;
             public float BlendAlpha;
+            public Vector4 HoverColor;
 
-            public SceneUB(Matrix4x4 view, Vector3 camPlaneNormal, float camPlaneOffset, Vector2 viewportSize, float forceSolidHighlight, float blendAlpha)
+            public SceneUB(Matrix4x4 view, Vector3 camPlaneNormal, float camPlaneOffset, Vector2 viewportSize, float forceSolidHighlight, float blendAlpha, Vector4 hoverColor)
             {
                 View = view;
                 CamPlaneNormal = camPlaneNormal;
@@ -45,6 +46,7 @@ namespace EditTK.Testing
                 ViewportSize = viewportSize;
                 ForceSolidHighlight = forceSolidHighlight;
                 BlendAlpha = blendAlpha;
+                HoverColor = hoverColor;
             }
         }
 
@@ -700,12 +702,16 @@ namespace EditTK.Testing
             #region Scene Rendering
             Vector3 camPlaneNormal = -_cam.ForwardVector / _far;
 
-            cl.UpdateBuffer(_sceneUB, 0, new SceneUB(
+
+            var _sceneUBData = new SceneUB(
                 _cam.ViewMatrix * _cam.ProjectionMatrix,
                 camPlaneNormal, Vector3.Dot(camPlaneNormal, _cam.Position),
                 new Vector2(Width, Height),
-                0, 0
-                ));
+                0, 0,
+                Vector4.Zero
+                );
+
+            cl.UpdateBuffer(_sceneUB, 0, _sceneUBData);
 
 
             float baseScale = _stressTest ? 3.75f : 0.75f;
@@ -713,6 +719,11 @@ namespace EditTK.Testing
             cl.UpdateBuffer(_planeUB, 0,
                 Matrix4x4.CreateScale((float)(baseScale + Math.Sin(TimeTracker.Time) * 0.25)));
 
+
+            bool useSpecialHover = true;
+
+
+            Matrix4x4 hoveredTransform = new Matrix4x4();
 
             
             void RenderPass(bool isHightlight)
@@ -731,15 +742,16 @@ namespace EditTK.Testing
 
 
 
-                void Cube(Matrix4x4 transform, uint id)
+                void Cube(Matrix4x4 transform, uint id, Vector4 highlight = new Vector4())
                 {
-                    Vector4 highlight = Vector4.Zero;
-
                     if (id == _pickedId)
                     {
+                        hoveredTransform = transform;
+
                         //transform = Matrix4x4.CreateScale(1.1f) * transform;
 
-                        highlight = new Vector4(1, 1, 0.5f, 0.25f);
+                        if(!useSpecialHover)
+                            highlight = new Vector4(1, 1, 1, 0.25f);
                     }
 
                     if (isHightlight)
@@ -780,14 +792,14 @@ namespace EditTK.Testing
 
 
                     Cube(_testTransforms[0], 2);
-                    Cube(_testTransforms[1], 3);
+                    Cube(_testTransforms[1], 3, new Vector4(1, 1, 0.5f, 0.25f));
                     Cube(_testTransforms[2], 4);
                 }
 
 
 
 
-                _cubeRenderer.Draw(cl, _cubeModel, _cubeInstances, _sceneSet!, _planeSet!);
+                _cubeRenderer.Draw(cl, _cubeModel, _cubeInstances, _sceneSet!);
             }
 
 
@@ -795,6 +807,24 @@ namespace EditTK.Testing
             RenderPass(false);
             _sceneHighlightFB.Use(cl);
             RenderPass(true);
+
+            if (_pickedId >= 2 && useSpecialHover)
+            {
+                _sceneUBData.CamPlaneNormal = Vector3.Zero;
+                _sceneUBData.CamPlaneOffset = 0;
+                _sceneUBData.HoverColor = new Vector4(1, 0.5f, 0.2f, 1.0f);
+
+                cl.UpdateBuffer(_sceneUB, 0, _sceneUBData);
+
+                _cubeInstances.Clear();
+
+                _cubeInstances.Add(new ObjectInstance(hoveredTransform, _pickedId,
+                    Vector4.One));
+
+                _cubeRenderer.Draw(cl, _cubeModel, _cubeInstances, _sceneSet!);
+            }
+            
+
 
 
             cl.SetFramebuffer(MainSwapchain.Framebuffer);
