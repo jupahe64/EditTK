@@ -13,10 +13,12 @@ layout(set = 0, binding = 0) uniform ub_Scene
 layout(set = 0, binding = 1, rgba32f) uniform image2D OutputTexture;
 
 layout(set = 0, binding = 2) uniform texture2D  Color0;
-layout(set = 0, binding = 3) uniform texture2D  Depth0;
-layout(set = 0, binding = 4) uniform sampler    LinearSampler;
-layout(set = 0, binding = 5) uniform itexture2D Picking0;
-layout(set = 0, binding = 6) uniform sampler    PointSampler;
+layout(set = 0, binding = 3) uniform texture2D  Color1;
+layout(set = 0, binding = 4) uniform texture2D  Depth0;
+layout(set = 0, binding = 5) uniform texture2D  Depth1;
+layout(set = 0, binding = 6) uniform sampler    LinearSampler;
+layout(set = 0, binding = 7) uniform itexture2D Picking0;
+layout(set = 0, binding = 8) uniform sampler    PointSampler;
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
@@ -37,9 +39,25 @@ void main()
 
     vec4 col0 = texelFetch(sampler2D(Color0, LinearSampler), point_c, 0);
 
+    vec4 col1_c = texelFetch(sampler2D(Color1, LinearSampler), point_c, 0);
+    vec4 col1_u = texelFetch(sampler2D(Color1, LinearSampler), point_u, 0);
+    vec4 col1_d = texelFetch(sampler2D(Color1, LinearSampler), point_d, 0);
+    vec4 col1_l = texelFetch(sampler2D(Color1, LinearSampler), point_l, 0);
+    vec4 col1_r = texelFetch(sampler2D(Color1, LinearSampler), point_r, 0);
+
     
  
-    float depth0_00 = texelFetch(sampler2D(Depth0, LinearSampler), point_c, 0).r;
+    float depth0_c = texelFetch(sampler2D(Depth0, LinearSampler), point_c, 0).r;
+    float depth0_u = texelFetch(sampler2D(Depth0, LinearSampler), point_u, 0).r;
+    float depth0_d = texelFetch(sampler2D(Depth0, LinearSampler), point_d, 0).r;
+    float depth0_l = texelFetch(sampler2D(Depth0, LinearSampler), point_l, 0).r;
+    float depth0_r = texelFetch(sampler2D(Depth0, LinearSampler), point_r, 0).r;
+
+    float depth1_c = texelFetch(sampler2D(Depth1, LinearSampler), point_c, 0).r;
+    float depth1_u = texelFetch(sampler2D(Depth1, LinearSampler), point_u, 0).r;
+    float depth1_d = texelFetch(sampler2D(Depth1, LinearSampler), point_d, 0).r;
+    float depth1_l = texelFetch(sampler2D(Depth1, LinearSampler), point_l, 0).r;
+    float depth1_r = texelFetch(sampler2D(Depth1, LinearSampler), point_r, 0).r;
 
     int pick0_c = texelFetch(isampler2D(Picking0, PointSampler), point_c, 0).r;
     int pick0_u = texelFetch(isampler2D(Picking0, PointSampler), point_u, 0).r;
@@ -47,13 +65,27 @@ void main()
     int pick0_l = texelFetch(isampler2D(Picking0, PointSampler), point_l, 0).r;
     int pick0_r = texelFetch(isampler2D(Picking0, PointSampler), point_r, 0).r;
 
-    float d = float(
+    float isEdge = float(
         pick0_c!=pick0_u || 
         pick0_c!=pick0_d || 
         pick0_c!=pick0_l || 
         pick0_c!=pick0_r);
 
-    d = max(d,(1-depth0_00*100) * float(pick0_c==1));
+
+    vec4 closestCol1 = vec4(0.0);
+    float closestDepth0=1;
+    float closestDepth1=1;
+
+    float closer;
+
+    closer = float(depth1_c<closestDepth1);    closestCol1 = mix(closestCol1, col1_c, closer);  closestDepth0 = mix(closestDepth0, depth0_c, closer);   closestDepth1 = mix(closestDepth1, depth1_c, closer);
+    closer = float(depth1_u<closestDepth1);    closestCol1 = mix(closestCol1, col1_u, closer);  closestDepth0 = mix(closestDepth0, depth0_u, closer);   closestDepth1 = mix(closestDepth1, depth1_u, closer);
+    closer = float(depth1_d<closestDepth1);    closestCol1 = mix(closestCol1, col1_d, closer);  closestDepth0 = mix(closestDepth0, depth0_d, closer);   closestDepth1 = mix(closestDepth1, depth1_d, closer);
+    closer = float(depth1_l<closestDepth1);    closestCol1 = mix(closestCol1, col1_l, closer);  closestDepth0 = mix(closestDepth0, depth0_l, closer);   closestDepth1 = mix(closestDepth1, depth1_l, closer);
+    closer = float(depth1_r<closestDepth1);    closestCol1 = mix(closestCol1, col1_r, closer);  closestDepth0 = mix(closestDepth0, depth0_r, closer);   closestDepth1 = mix(closestDepth1, depth1_r, closer);
+
+
+    //d = max(d,(1-depth0_00*100) * float(pick0_c==1));
 
 //    imageStore(
 //        OutputTexture,
@@ -62,9 +94,20 @@ void main()
 //    );
 
 
+    float lineOpacity = max(0.5,smoothstep(-0.001,0, closestDepth0-closestDepth1));
+
+
     imageStore(
             OutputTexture,
             ivec2(gl_GlobalInvocationID.xy),
-            col0 + vec4(1.0,1.0,0.6,1.0)*clamp(d,0.0,1.0)
+            vec4(mix(col0.rgb, closestCol1.rgb, 
+            
+            closestCol1.a*isEdge*lineOpacity),1)
         );
+
+//        imageStore(
+//            OutputTexture,
+//            ivec2(gl_GlobalInvocationID.xy),
+//            vec4(lineOpacity)
+//        );
 }

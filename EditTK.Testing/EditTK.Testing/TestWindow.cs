@@ -88,7 +88,13 @@ namespace EditTK.Testing
         private readonly GenericInstanceRenderer<int, VertexPositionColor, ObjectInstance> _cubeRenderer;
         private readonly ComputeShader _compositeShader;
 
-        private readonly SimpleFrameBuffer _sceneFB = new(
+        private readonly SimpleFrameBuffer _sceneMainFB = new(
+            PixelFormat.D32_Float_S8_UInt,
+
+            PixelFormat.R8_G8_B8_A8_UNorm,
+            PixelFormat.R32_UInt);
+
+        private readonly SimpleFrameBuffer _sceneHighlightFB = new(
             PixelFormat.D32_Float_S8_UInt,
 
             PixelFormat.R8_G8_B8_A8_UNorm,
@@ -170,13 +176,15 @@ namespace EditTK.Testing
                 .GetLayout();
 
             _compositeUniformLayout = ShaderUniformLayoutBuilder.Get()
-                .AddResourceUniform("ub_Scene", ResourceKind.UniformBuffer, ShaderStages.Compute)
+                .AddResourceUniform("ub_Scene",      ResourceKind.UniformBuffer, ShaderStages.Compute)
                 .AddResourceUniform("OutputTexture", ResourceKind.TextureReadWrite, ShaderStages.Compute)
-                .AddTexture("Color0",        ShaderStages.Compute)
-                .AddTexture("Depth0",        ShaderStages.Compute)
-                .AddSampler("LinearSampler", ShaderStages.Compute)
-                .AddTexture("Picking0",      ShaderStages.Compute)
-                .AddSampler("PointSampler",  ShaderStages.Compute)
+                .AddTexture(        "Color0",        ShaderStages.Compute)
+                .AddTexture(        "Color1",        ShaderStages.Compute)
+                .AddTexture(        "Depth0",        ShaderStages.Compute)
+                .AddTexture(        "Depth1",        ShaderStages.Compute)
+                .AddSampler(        "LinearSampler", ShaderStages.Compute)
+                .AddTexture(        "Picking0",      ShaderStages.Compute)
+                .AddSampler(        "PointSampler",  ShaderStages.Compute)
                 .GetLayout();
 
             _planeUniformLayout = ShaderUniformLayoutBuilder.Get()
@@ -207,7 +215,7 @@ namespace EditTK.Testing
 
                 var builder = new GenericModelBuilder<VertexPositionColor>();
 
-                float BEVEL = 0.2f;
+                float BEVEL = 0.1f;
 
                 Vector4 defaultColor = new(0, 0, 0, 1);
                 Vector4 lineColor    = new(1, 1, 1, 1);
@@ -248,7 +256,7 @@ namespace EditTK.Testing
                 #endregion
 
                 float w = 1 - BEVEL;
-                float m = 1 - BEVEL * 0.3f;
+                float m = 1 - BEVEL * 0.5f;
 
 
                 #region Cube part Helpers
@@ -374,7 +382,7 @@ namespace EditTK.Testing
                     _sceneUniformLayout,
                     _planeUniformLayout
                 },
-                outputDescription: _sceneFB.OutputDescription,
+                outputDescription: _sceneMainFB.OutputDescription,
                 blendState: new BlendStateDescription(RgbaFloat.White, 
                     BlendAttachmentDescription.AlphaBlend,
                     BlendAttachmentDescription.Disabled)
@@ -388,7 +396,7 @@ namespace EditTK.Testing
                     _sceneUniformLayout,
                     _planeUniformLayout
                 },
-                outputDescription: _sceneFB.OutputDescription,
+                outputDescription: _sceneMainFB.OutputDescription,
                 blendState: new BlendStateDescription(RgbaFloat.White,
                     BlendAttachmentDescription.AlphaBlend,
                     BlendAttachmentDescription.Disabled)
@@ -432,7 +440,8 @@ namespace EditTK.Testing
 
             _gizmoDrawer.UpdateScreenSize(new Vector2(Width, Height));
 
-            _sceneFB.SetSize(Width, Height);
+            _sceneMainFB.SetSize(Width, Height);
+            _sceneHighlightFB.SetSize(Width, Height);
 
             
 
@@ -442,12 +451,16 @@ namespace EditTK.Testing
 
             _sceneSet = _sceneUniformLayout.CreateResourceSet(_sceneUB!);
 
-            _compositeSet = _compositeUniformLayout.CreateResourceSet(_sceneUB!, _finalTexture, 
-                ResourceFactory.CreateTextureView(_sceneFB.ColorTextures[0]),
-                ResourceFactory.CreateTextureView(_sceneFB.DepthTexture),
-                GD!.LinearSampler,
-                ResourceFactory.CreateTextureView(_sceneFB.ColorTextures[1]),
-                GD!.PointSampler);
+            _compositeSet = _compositeUniformLayout.CreateResourceSet(
+                ("ub_Scene",      _sceneUB!), 
+                ("OutputTexture", _finalTexture), 
+                ("Color0",        ResourceFactory.CreateTextureView(_sceneMainFB.ColorTextures[0])),
+                ("Color1",        ResourceFactory.CreateTextureView(_sceneHighlightFB.ColorTextures[0])),
+                ("Depth0",        ResourceFactory.CreateTextureView(_sceneMainFB.DepthTexture)),
+                ("Depth1",        ResourceFactory.CreateTextureView(_sceneHighlightFB.DepthTexture)),
+                ("LinearSampler", GD!.LinearSampler),
+                ("Picking0",      ResourceFactory.CreateTextureView(_sceneHighlightFB.ColorTextures[1])),
+                ("PointSampler",  GD!.PointSampler));
         }
 
         protected override void Draw(float deltaSeconds, CommandList cl)
@@ -701,76 +714,87 @@ namespace EditTK.Testing
                 Matrix4x4.CreateScale((float)(baseScale + Math.Sin(TimeTracker.Time) * 0.25)));
 
 
-            _sceneFB.Use(cl);
-            cl.ClearColorTarget(0, new RgbaFloat(0, 0, 0.2f, 1));
-            cl.ClearColorTarget(1, RgbaFloat.Clear);
-            cl.ClearDepthStencil(1f);
-
-
-            cl.InsertDebugMarker("drawing plane");
-            _planeRenderer.Draw(cl, _planeModel, _sceneSet!, _planeSet!);
-
-
-            cl.UpdateBuffer(_planeUB, 0,
-                Matrix4x4.CreateScale(0.99f)*
-                Matrix4x4.CreateRotationY((float)(TimeTracker.Time * 0.1))*
-                Matrix4x4.CreateRotationX((float)(TimeTracker.Time * 0.1))*
-                Matrix4x4.CreateTranslation(0,2,0));
-
-
-            _cubeInstances.Clear();
-
-
-
-            void Cube(Matrix4x4 transform, uint id)
+            
+            void RenderPass(bool isHightlight)
             {
-                Vector4 highlight = Vector4.Zero;
+                cl.ClearColorTarget(0, new RgbaFloat(0, 0, 0.2f, 1));
+                cl.ClearColorTarget(1, RgbaFloat.Clear);
+                cl.ClearDepthStencil(1f);
 
-                if (id == _pickedId)
+                if (!isHightlight)
                 {
-                    //transform = Matrix4x4.CreateScale(1.1f) * transform;
+                    cl.InsertDebugMarker("drawing plane");
+                    _planeRenderer.Draw(cl, _planeModel, _sceneSet!, _planeSet!);
+                }
+                
+                _cubeInstances.Clear();
 
-                    highlight = new Vector4(1, 1, 0.5f, 0.25f);
+
+
+                void Cube(Matrix4x4 transform, uint id)
+                {
+                    Vector4 highlight = Vector4.Zero;
+
+                    if (id == _pickedId)
+                    {
+                        //transform = Matrix4x4.CreateScale(1.1f) * transform;
+
+                        highlight = new Vector4(1, 1, 0.5f, 0.25f);
+                    }
+
+                    if (isHightlight)
+                    {
+                        if (highlight.W > 0)
+                            highlight.W = 1;
+                        else
+                            return;
+                    }
+
+                    _cubeInstances.Add(new ObjectInstance(transform, id, highlight));
                 }
 
-                _cubeInstances.Add(new ObjectInstance(transform, id, highlight));
-            }
-
-            if (_stressTest)
-            {
-                //120,000 cubes
-
-                for (int i = 0; i < 300; i++)
+                if (_stressTest)
                 {
-                    for (int j = 0; j < 400; j++)
+                    //120,000 cubes
+
+                    for (int i = 0; i < 300; i++)
                     {
-                        Matrix4x4 mtx =
-                            Matrix4x4.CreateScale(Math.Max(0, (float)Math.Sin(TimeTracker.Time + i * j))) *
-                            Matrix4x4.CreateTranslation(300 - i * 2, 0, 400 - j * 2);
+                        for (int j = 0; j < 400; j++)
+                        {
+                            Matrix4x4 mtx =
+                                Matrix4x4.CreateScale(Math.Max(0, (float)Math.Sin(TimeTracker.Time + i * j))) *
+                                Matrix4x4.CreateTranslation(300 - i * 2, 0, 400 - j * 2);
 
 
-                        uint id = (uint)(i + 300 * j);
+                            uint id = (uint)(i + 300 * j);
 
 
-                        Cube(mtx,2+id);
+                            Cube(mtx, 2 + id);
 
 
+                        }
                     }
                 }
+                else
+                {
+
+
+                    Cube(_testTransforms[0], 2);
+                    Cube(_testTransforms[1], 3);
+                    Cube(_testTransforms[2], 4);
+                }
+
+
+
+
+                _cubeRenderer.Draw(cl, _cubeModel, _cubeInstances, _sceneSet!, _planeSet!);
             }
-            else
-            {
-                
-
-                Cube(_testTransforms[0],2);
-                Cube(_testTransforms[1],3);
-                Cube(_testTransforms[2],4);
-            }
-            
 
 
-
-            _cubeRenderer.Draw(cl, _cubeModel, _cubeInstances, _sceneSet!, _planeSet!);
+            _sceneMainFB.Use(cl);
+            RenderPass(false);
+            _sceneHighlightFB.Use(cl);
+            RenderPass(true);
 
 
             cl.SetFramebuffer(MainSwapchain.Framebuffer);
@@ -789,11 +813,11 @@ namespace EditTK.Testing
                     CommandListFence,
                     pixel => _pickedColor = pixel);
 
-                _depthPixelReader.ReadPixel(cl, _sceneFB.DepthTexture!, (uint)MousePosition.X, (uint)MousePosition.Y,
+                _depthPixelReader.ReadPixel(cl, _sceneMainFB.DepthTexture!, (uint)MousePosition.X, (uint)MousePosition.Y,
                     CommandListFence,
                     pixel => _pickedDepth = pixel * _far);
 
-                _pidPixelReader.ReadPixel(cl, _sceneFB.ColorTextures[1]!, (uint)MousePosition.X, (uint)MousePosition.Y,
+                _pidPixelReader.ReadPixel(cl, _sceneMainFB.ColorTextures[1]!, (uint)MousePosition.X, (uint)MousePosition.Y,
                     CommandListFence,
                     pixel => _pickedId = pixel);
 
