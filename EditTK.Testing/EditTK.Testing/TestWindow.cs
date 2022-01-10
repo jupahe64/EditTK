@@ -48,7 +48,7 @@ namespace EditTK.Testing
             }
         }
 
-        public struct InstanceWithID
+        public struct ObjectInstance
         {
             [VertexAttributeAtrribute("Transform", VertexElementFormat.Float4, 4)]
             public Matrix4x4 Transform;
@@ -56,10 +56,14 @@ namespace EditTK.Testing
             [VertexAttributeAtrribute("Id", VertexElementFormat.UInt1)]
             public uint Id;
 
-            public InstanceWithID(Matrix4x4 transform, uint id)
+            [VertexAttributeAtrribute("HighlightColor", VertexElementFormat.Float4)]
+            public Vector4 HighlightColor;
+
+            public ObjectInstance(Matrix4x4 transform, uint id, Vector4 highlightColor)
             {
                 Transform = transform;
                 Id = id;
+                HighlightColor = highlightColor;
             }
         }
 
@@ -78,13 +82,13 @@ namespace EditTK.Testing
 
         private readonly GenericModel<int, VertexPositionTexture> _planeModel;
         private readonly GenericModel<int, VertexPositionColor> _cubeModel;
-        private readonly GenericInstanceHolder<InstanceWithID> _cubeInstances;
+        private readonly GenericInstanceHolder<ObjectInstance> _cubeInstances;
 
         private readonly GenericModelRenderer<int, VertexPositionTexture> _planeRenderer;
-        private readonly GenericInstanceRenderer<int, VertexPositionColor, InstanceWithID> _cubeRenderer;
+        private readonly GenericInstanceRenderer<int, VertexPositionColor, ObjectInstance> _cubeRenderer;
         private readonly ComputeShader _compositeShader;
 
-        private readonly SimpleFrameBuffer _sceneFB = new SimpleFrameBuffer(
+        private readonly SimpleFrameBuffer _sceneFB = new(
             PixelFormat.D32_Float_S8_UInt,
 
             PixelFormat.R8_G8_B8_A8_UNorm,
@@ -92,16 +96,16 @@ namespace EditTK.Testing
 
         private readonly PixelReader<RgbaByte> _colorPixelReader;
         private readonly PixelReader<uint> _pidPixelReader;
-        private PixelReader<float> _depthPixelReader;
+        private readonly PixelReader<float> _depthPixelReader;
         private DeviceBuffer? _sceneUB;
         private ResourceSet? _sceneSet;
-        private ResourceSet _compositeSet;
+        private ResourceSet? _compositeSet;
         private DeviceBuffer? _planeUB;
         private ResourceSet? _planeSet;
 
         private Texture? _finalTexture;
 
-        private float _far = 1000;
+        private readonly float _far = 1000;
         private float _pickedDepth = 0;
         private float _fps;
         private float _displayFps;
@@ -124,9 +128,7 @@ namespace EditTK.Testing
 
         private readonly string Composition_ComputeCode =
             File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "composition.comp"));
-
-
-        Matrix4x4[] _testTransforms = new[]
+        readonly Matrix4x4[] _testTransforms = new[]
         {
             Matrix4x4.CreateTranslation(0, 0, 0),
             Matrix4x4.CreateTranslation(-3, 2, -4),
@@ -134,7 +136,7 @@ namespace EditTK.Testing
         };
 
 
-        private string _givenWindowTitle;
+        private readonly string _givenWindowTitle;
         private bool _isDragging;
         private bool _stressTest;
         private uint _pickedId;
@@ -207,8 +209,8 @@ namespace EditTK.Testing
 
                 float BEVEL = 0.2f;
 
-                Vector4 defaultColor = new Vector4(0, 0, 0, 1);
-                Vector4 lineColor    = new Vector4(1, 1, 1, 1);
+                Vector4 defaultColor = new(0, 0, 0, 1);
+                Vector4 lineColor    = new(1, 1, 1, 1);
 
                 Matrix4x4 mtx;
 
@@ -360,7 +362,7 @@ namespace EditTK.Testing
 
 
 
-            _cubeInstances = new GenericInstanceHolder<InstanceWithID>();
+            _cubeInstances = new GenericInstanceHolder<ObjectInstance>();
 
 
 
@@ -378,7 +380,7 @@ namespace EditTK.Testing
                     BlendAttachmentDescription.Disabled)
                 );
 
-            _cubeRenderer = new GenericInstanceRenderer<int, VertexPositionColor, InstanceWithID>(
+            _cubeRenderer = new GenericInstanceRenderer<int, VertexPositionColor, ObjectInstance>(
                 vertexShaderBytes: Encoding.UTF8.GetBytes(ArrowCube_VertexCode),
                 fragmentShaderBytes: Encoding.UTF8.GetBytes(ArrowCube_FragmentCode),
                 uniformLayouts: new[]
@@ -576,7 +578,7 @@ namespace EditTK.Testing
             ImGui.Begin("Top", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoScrollWithMouse);
 
             {
-                Vector2 topLeft = new Vector2(Width / 2 - 380/2 - 200, 0);
+                Vector2 topLeft = new(Width / 2 - 380/2 - 200, 0);
 
                 bool isOpenGL = GD.BackendType == GraphicsBackend.OpenGL;
                 bool isMultipleWindows = WindowManager.MoreThanOneWindow();
@@ -722,10 +724,16 @@ namespace EditTK.Testing
 
             void Cube(Matrix4x4 transform, uint id)
             {
-                if (id == _pickedId)
-                    transform = Matrix4x4.CreateScale(1.1f) * transform;
+                Vector4 highlight = Vector4.Zero;
 
-                _cubeInstances.Add(new InstanceWithID(transform, id));
+                if (id == _pickedId)
+                {
+                    //transform = Matrix4x4.CreateScale(1.1f) * transform;
+
+                    highlight = new Vector4(1, 1, 0.5f, 0.25f);
+                }
+
+                _cubeInstances.Add(new ObjectInstance(transform, id, highlight));
             }
 
             if (_stressTest)

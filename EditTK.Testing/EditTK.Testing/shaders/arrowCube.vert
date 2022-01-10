@@ -28,24 +28,28 @@ layout(location = 1) in vec4 col;
 MAT4_ATTRIBUTE(2,3,4,5, Transform)
 
 layout(location = 6) in uint Id;
+layout(location = 7) in vec4 HighlightColor;
 
 
-layout(location = 0) out vec3 fragPos;
-layout(location = 1) out float fragDepth;
-layout(location = 2) out flat uint fragPID;
-layout(location = 3) out vec4 fragCol;
+layout(location = 0) out vec3 vPos;
+layout(location = 1) out float depth;
+layout(location = 2) out flat uint id;
+layout(location = 3) out vec4 vCol;
+layout(location = 4) out vec4 highlightColor;
 
 void main() {
 
     vec4 worldPos = Transform * vec4(pos, 1);
 
-    fragPos = pos.xyz;
+    vPos = pos.xyz;
 
-    fragCol = col;
+    vCol = col;
    
     gl_Position = View * vec4(worldPos.xyz, 1);
 
-    fragDepth = (CamPlaneOffset-dot(worldPos.xyz,CamPlaneNormal));
+    depth = (CamPlaneOffset-dot(worldPos.xyz,CamPlaneNormal));
 
-    fragPID = Id;
+    id = Id;
+
+    highlightColor = HighlightColor;
 }
