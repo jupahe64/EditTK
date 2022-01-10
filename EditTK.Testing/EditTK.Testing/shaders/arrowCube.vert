@@ -27,9 +27,13 @@ layout(location = 1) in vec4 col;
 
 MAT4_ATTRIBUTE(2,3,4,5, Transform)
 
+layout(location = 6) in uint Id;
+
+
 layout(location = 0) out vec3 fragPos;
 layout(location = 1) out float fragDepth;
-layout(location = 2) out vec4 fragCol;
+layout(location = 2) out flat uint fragPID;
+layout(location = 3) out vec4 fragCol;
 
 void main() {
 
@@ -42,4 +46,6 @@ void main() {
     gl_Position = View * vec4(worldPos.xyz, 1);
 
     fragDepth = (CamPlaneOffset-dot(worldPos.xyz,CamPlaneNormal));
+
+    fragPID = Id;
 }

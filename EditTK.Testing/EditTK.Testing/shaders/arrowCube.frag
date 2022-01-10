@@ -12,7 +12,8 @@ layout(set = 0, binding = 0) uniform ub_Scene
 
 layout(location = 0) in vec3 fragPos;
 layout(location = 1) in float fragDepth;
-layout(location = 2) in vec4 fragCol;
+layout(location = 2) in flat uint fragPID;
+layout(location = 3) in vec4 fragCol;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out uint outPickingID;
@@ -41,7 +42,7 @@ void main()
     //outColor = vec4(1.0);
     //outPickingID = PickingID;
 
-    outPickingID = 2;
+    outPickingID = fragPID;
 
     gl_FragDepth =  fragDepth;
 }

@@ -48,7 +48,22 @@ namespace EditTK.Testing
             }
         }
 
-        
+        public struct InstanceWithID
+        {
+            [VertexAttributeAtrribute("Transform", VertexElementFormat.Float4, 4)]
+            public Matrix4x4 Transform;
+
+            [VertexAttributeAtrribute("Id", VertexElementFormat.UInt1)]
+            public uint Id;
+
+            public InstanceWithID(Matrix4x4 transform, uint id)
+            {
+                Transform = transform;
+                Id = id;
+            }
+        }
+
+
         private readonly GizmoDrawer _gizmoDrawer;
         private readonly ImageSharpTexture orientationCubeTexture;
         private readonly ShaderUniformLayout _sceneUniformLayout;
@@ -63,10 +78,10 @@ namespace EditTK.Testing
 
         private readonly GenericModel<int, VertexPositionTexture> _planeModel;
         private readonly GenericModel<int, VertexPositionColor> _cubeModel;
-        private readonly GenericInstanceHolder<SimpleInstance> _cubeInstances;
+        private readonly GenericInstanceHolder<InstanceWithID> _cubeInstances;
 
         private readonly GenericModelRenderer<int, VertexPositionTexture> _planeRenderer;
-        private readonly GenericInstanceRenderer<int, VertexPositionColor, SimpleInstance> _cubeRenderer;
+        private readonly GenericInstanceRenderer<int, VertexPositionColor, InstanceWithID> _cubeRenderer;
         private readonly ComputeShader _compositeShader;
 
         private readonly SimpleFrameBuffer _sceneFB = new SimpleFrameBuffer(
@@ -76,6 +91,7 @@ namespace EditTK.Testing
             PixelFormat.R32_UInt);
 
         private readonly PixelReader<RgbaByte> _colorPixelReader;
+        private readonly PixelReader<uint> _pidPixelReader;
         private PixelReader<float> _depthPixelReader;
         private DeviceBuffer? _sceneUB;
         private ResourceSet? _sceneSet;
@@ -121,6 +137,7 @@ namespace EditTK.Testing
         private string _givenWindowTitle;
         private bool _isDragging;
         private bool _stressTest;
+        private uint _pickedId;
 
         public TestWindow(WindowCreateInfo wci) : base(wci)
         {
@@ -136,6 +153,7 @@ namespace EditTK.Testing
 
 
             _colorPixelReader = new PixelReader<RgbaByte>(PixelFormat.R8_G8_B8_A8_UNorm);
+            _pidPixelReader = new PixelReader<uint>(PixelFormat.R32_UInt);
             _depthPixelReader = new PixelReader<float>(PixelFormat.D32_Float_S8_UInt);
 
             _sceneUniformLayout = ShaderUniformLayoutBuilder.Get()
@@ -342,7 +360,7 @@ namespace EditTK.Testing
 
 
 
-            _cubeInstances = new GenericInstanceHolder<SimpleInstance>();
+            _cubeInstances = new GenericInstanceHolder<InstanceWithID>();
 
 
 
@@ -360,7 +378,7 @@ namespace EditTK.Testing
                     BlendAttachmentDescription.Disabled)
                 );
 
-            _cubeRenderer = new GenericInstanceRenderer<int, VertexPositionColor, SimpleInstance>(
+            _cubeRenderer = new GenericInstanceRenderer<int, VertexPositionColor, InstanceWithID>(
                 vertexShaderBytes: Encoding.UTF8.GetBytes(ArrowCube_VertexCode),
                 fragmentShaderBytes: Encoding.UTF8.GetBytes(ArrowCube_FragmentCode),
                 uniformLayouts: new[]
@@ -539,6 +557,8 @@ namespace EditTK.Testing
 
                 ImGui.Text($"  Depth:   {_pickedDepth,0:F2}m");
 
+                ImGui.Text($"  Id:   0x{_pickedId:X6}");
+
                 
             }
             imguiHovered |= ImGui.IsAnyItemHovered() || ImGui.IsWindowHovered();
@@ -698,9 +718,17 @@ namespace EditTK.Testing
 
             _cubeInstances.Clear();
 
-            
 
-            if(_stressTest)
+
+            void Cube(Matrix4x4 transform, uint id)
+            {
+                if (id == _pickedId)
+                    transform = Matrix4x4.CreateScale(1.1f) * transform;
+
+                _cubeInstances.Add(new InstanceWithID(transform, id));
+            }
+
+            if (_stressTest)
             {
                 //120,000 cubes
 
@@ -713,8 +741,10 @@ namespace EditTK.Testing
                             Matrix4x4.CreateTranslation(300 - i * 2, 0, 400 - j * 2);
 
 
+                        uint id = (uint)(i + 300 * j);
 
-                        _cubeInstances.Add(new SimpleInstance(mtx));
+
+                        Cube(mtx,2+id);
 
 
                     }
@@ -722,9 +752,11 @@ namespace EditTK.Testing
             }
             else
             {
-                _cubeInstances.Add(new SimpleInstance(_testTransforms[0]));
-                _cubeInstances.Add(new SimpleInstance(_testTransforms[1]));
-                _cubeInstances.Add(new SimpleInstance(_testTransforms[2]));
+                
+
+                Cube(_testTransforms[0],2);
+                Cube(_testTransforms[1],3);
+                Cube(_testTransforms[2],4);
             }
             
 
@@ -752,6 +784,10 @@ namespace EditTK.Testing
                 _depthPixelReader.ReadPixel(cl, _sceneFB.DepthTexture!, (uint)MousePosition.X, (uint)MousePosition.Y,
                     CommandListFence,
                     pixel => _pickedDepth = pixel * _far);
+
+                _pidPixelReader.ReadPixel(cl, _sceneFB.ColorTextures[1]!, (uint)MousePosition.X, (uint)MousePosition.Y,
+                    CommandListFence,
+                    pixel => _pickedId = pixel);
 
             }
 
