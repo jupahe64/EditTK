@@ -36,12 +36,30 @@ layout(location = 1) out float depth;
 layout(location = 2) out flat uint id;
 layout(location = 3) out vec4 vCol;
 layout(location = 4) out vec4 highlightColor;
+layout(location = 5) out flat vec3 boxScale;
 
 void main() {
 
-    vec4 worldPos = Transform * vec4(pos, 1);
+    boxScale = vec3(
+      length(Transform[0].xyz),
+      length(Transform[1].xyz),
+      length(Transform[2].xyz));
+   
+    mat4 _Transform = mat4(
+        Transform[0]/boxScale.x,
+        Transform[1]/boxScale.y,
+        Transform[2]/boxScale.z,
+        Transform[3]
+    );
+   
+    vec3 _pos = round(pos*2)/2;
+    vec3 _poss = _pos * boxScale;
+    _poss += pos-_pos;
 
-    vPos = pos.xyz;
+    vPos = _poss;
+
+
+    vec4 worldPos = _Transform * vec4(vPos, 1);
 
     vCol = col;
    

@@ -136,11 +136,17 @@ namespace EditTK.Testing
 
         private readonly string Composition_ComputeCode =
             File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "composition.comp"));
+        
+        
+        
         readonly Matrix4x4[] _testTransforms = new[]
         {
             Matrix4x4.CreateTranslation(0, 0, 0),
             Matrix4x4.CreateTranslation(-3, 2, -4),
             Matrix4x4.CreateTranslation(3, 0, -3),
+
+            Matrix4x4.CreateScale(3,5,3)*Matrix4x4.CreateTranslation(7, 1, -6),
+            Matrix4x4.CreateScale(8,2,2)*Matrix4x4.CreateTranslation(0, 0, -10),
         };
 
 
@@ -789,11 +795,17 @@ namespace EditTK.Testing
                 }
                 else
                 {
+                    for (int i = 0; i < _testTransforms.Length; i++)
+                    {
+                        var highlight = Vector4.Zero;
 
+                        if (i == 1)
+                        {
+                            highlight = new Vector4(1, 1, 0.5f, 0.25f);
+                        }
 
-                    Cube(_testTransforms[0], 2);
-                    Cube(_testTransforms[1], 3, new Vector4(1, 1, 0.5f, 0.25f));
-                    Cube(_testTransforms[2], 4);
+                        Cube(_testTransforms[i], (uint)i+2);
+                    }
                 }
 
 
