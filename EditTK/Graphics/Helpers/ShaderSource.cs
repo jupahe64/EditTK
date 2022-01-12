@@ -19,9 +19,8 @@ namespace EditTK.Graphics.Helpers
 
         public void Update(byte[] shaderBytes)
         {
-            Updated?.Invoke();
-
             ShaderBytes = shaderBytes;
+            Updated?.Invoke();
         }
 
         public static implicit operator ShaderSource(byte[] bytes) => new(bytes);
