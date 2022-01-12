@@ -18,12 +18,24 @@ namespace EditTK.Graphics.Helpers
         where TVertex : unmanaged
         where TInstance : unmanaged
     {
+
+        /// <summary>
+        /// Creates a new <see cref="GenericModelRenderer{TIndex, TVertex}"/>
+        /// </summary>
+        /// <param name="vertexShaderSource">The source for the vertex shader</param>
+        /// <param name="fragmentShaderSource">The source for the fragment shader</param>
+        /// <param name="uniformLayouts">The layouts of all uniform sets used in the shader(s), 
+        /// the order should match the set slot in the shader!</param>
+        /// <param name="outputDescription">Describes the color/depth outputs of the fragment shader</param>
+        /// <param name="blendState">Describes the blending options when drawing</param>
+        /// <param name="depthState">Describes the depth compare/write behaivior when drawing</param>
+        /// <param name="rasterizerState">Describes misc. render options</param>
         public GenericInstanceRenderer(
-            byte[] vertexShaderBytes, byte[] fragmentShaderBytes,
+            ShaderSource vertexShaderSource, ShaderSource fragmentShaderSource,
             ShaderUniformLayout[] uniformLayouts, OutputDescription outputDescription,
             BlendStateDescription? blendState = null, DepthStencilStateDescription? depthState = null,
             RasterizerStateDescription? rasterizerState = null)
-            : base(vertexShaderBytes, fragmentShaderBytes, uniformLayouts, outputDescription, blendState, depthState, rasterizerState)
+            : base(vertexShaderSource, fragmentShaderSource, uniformLayouts, outputDescription, blendState, depthState, rasterizerState)
         {
         }
 

@@ -12,9 +12,11 @@ namespace EditTK.Graphics.Helpers
     /// </summary>
     public class ComputeShader : ResourceHolder
     {
-        private readonly byte[] _computeShaderBytes;
+        private readonly ShaderSource _computeShaderSource;
         private ShaderUniformLayout[] _uniformLayouts;
         private Pipeline? _pipeline;
+        private Shader _shader;
+        private ResourceLayout[] _resourceLayouts;
         private readonly uint _groupSizeX;
         private readonly uint _groupSizeY;
         private readonly uint _groupSizeZ;
@@ -24,25 +26,23 @@ namespace EditTK.Graphics.Helpers
         /// <summary>
         /// Creates a new <see cref="GenericModelRenderer{TIndex, TVertex}"/>
         /// </summary>
-        /// <param name="computeShaderBytes">The compute shader code in bytes</param>
+        /// <param name="computeShaderSource">The source for the compute shader</param>
         /// <param name="uniformLayouts">The layouts of all uniform sets used in the shader(s), 
         /// the order should match the set slot in the shader!</param>
-        public ComputeShader(byte[] computeShaderBytes, ShaderUniformLayout[] uniformLayouts, uint groupSizeX, uint groupSizeY, uint groupSizeZ)
+        public ComputeShader(ShaderSource computeShaderSource, ShaderUniformLayout[] uniformLayouts, uint groupSizeX, uint groupSizeY, uint groupSizeZ)
         {
-            _computeShaderBytes = computeShaderBytes;
+            _computeShaderSource = computeShaderSource;
             _uniformLayouts = uniformLayouts;
             _groupSizeX = groupSizeX;
             _groupSizeY = groupSizeY;
             _groupSizeZ = groupSizeZ;
+
+            _computeShaderSource.Updated += CreatePipeline;
         }
 
         protected override void CreateResources(ResourceFactory factory, GraphicsDevice graphicsDevice)
         {
-            Shader shader = factory.CreateFromSpirv(
-                    new ShaderDescription(ShaderStages.Compute, _computeShaderBytes, "main", true));
-
-
-            var resourceLayouts = new ResourceLayout[_uniformLayouts.Length];
+            _resourceLayouts = new ResourceLayout[_uniformLayouts.Length];
 
             for (int i = 0; i < _uniformLayouts.Length; i++)
             {
@@ -51,11 +51,27 @@ namespace EditTK.Graphics.Helpers
                 ResourceLayout? layout = _uniformLayouts[i].ResourceLayout;
 
                 Debug.Assert(layout != null);
-                resourceLayouts[i] = layout;
+                _resourceLayouts[i] = layout;
             }
 
+            CreatePipeline();
+        }
+
+        private void CreatePipeline()
+        {
+            var factory = GraphicsAPI.ResourceFactory;
+
+            Debug.Assert(factory != null);
+
+            _shader?.Dispose();
+
+            _shader = factory.CreateFromSpirv(
+                    new ShaderDescription(ShaderStages.Compute, _computeShaderSource.ShaderBytes, "main", true));
+
+            _pipeline?.Dispose();
+
             _pipeline = factory.CreateComputePipeline(new ComputePipelineDescription(
-                shader, resourceLayouts, _groupSizeX, _groupSizeY, _groupSizeZ));
+                _shader, _resourceLayouts, _groupSizeX, _groupSizeY, _groupSizeZ));
         }
 
         /// <summary>

@@ -5,6 +5,7 @@ using Veldrid.SPIRV;
 
 namespace EditTK.Graphics.Helpers.Internal
 {
+
     /// <summary>
     /// Contains the base functionality of <see cref="GenericModelRenderer{,}"/> and <see cref="GenericInstanceRenderer{,,}"/>
     /// </summary>
@@ -14,8 +15,8 @@ namespace EditTK.Graphics.Helpers.Internal
         where TIndex : unmanaged
         where TVertex : unmanaged
     {
-        private readonly byte[] _vertexShaderBytes;
-        private readonly byte[] _fragmentShaderBytes;
+        private readonly ShaderSource _vertexShaderSource;
+        private readonly ShaderSource _fragmentShaderSource;
         private readonly ShaderUniformLayout[] _uniformLayouts;
         private BlendStateDescription? _blendState;
         private DepthStencilStateDescription? _depthState;
@@ -24,27 +25,21 @@ namespace EditTK.Graphics.Helpers.Internal
         protected Pipeline? _pipeline;
         private OutputDescription _outputDescription;
         private ShaderSetDescription _shaderSet;
+        private ResourceLayout[]? _resourceLayouts;
 
         public IReadOnlyList<ShaderUniformLayout> UniformSetLayouts => _uniformLayouts;
 
-        /// <summary>
-        /// Creates a new <see cref="GenericModelRenderer{TIndex, TVertex}"/>
-        /// </summary>
-        /// <param name="vertexShaderBytes">The vertex shader code in bytes</param>
-        /// <param name="fragmentShaderBytes">The fragment shader code in bytes</param>
-        /// <param name="uniformLayouts">The layouts of all uniform sets used in the shader(s), 
-        /// the order should match the set slot in the shader!</param>
-        /// <param name="outputDescription">Describes the color/depth outputs of the fragment shader</param>
-        /// <param name="blendState">Describes the blending options when drawing</param>
-        /// <param name="depthState">Describes the depth compare/write behaivior when drawing</param>
-        /// <param name="rasterizerState">Describes misc. render options</param>
-        public GenericModelRendererBase(byte[] vertexShaderBytes, byte[] fragmentShaderBytes,
+        
+        public GenericModelRendererBase(ShaderSource vertexShaderSource, ShaderSource fragmentShaderSource,
             ShaderUniformLayout[] uniformLayouts, OutputDescription outputDescription,
             BlendStateDescription? blendState = null, DepthStencilStateDescription? depthState = null,
             RasterizerStateDescription? rasterizerState = null)
         {
-            _vertexShaderBytes = vertexShaderBytes;
-            _fragmentShaderBytes = fragmentShaderBytes;
+            vertexShaderSource.Updated += CreatePipeline;
+            fragmentShaderSource.Updated += CreatePipeline;
+
+            _vertexShaderSource = vertexShaderSource;
+            _fragmentShaderSource = fragmentShaderSource;
             _uniformLayouts = uniformLayouts;
             _outputDescription = outputDescription;
             _blendState = blendState;
@@ -56,14 +51,7 @@ namespace EditTK.Graphics.Helpers.Internal
 
         protected override void CreateResources(ResourceFactory factory, GraphicsDevice graphicsDevice)
         {
-            _shaderSet = new ShaderSetDescription(
-                GetVertexLayouts(),
-                factory.CreateFromSpirv(
-                    new ShaderDescription(ShaderStages.Vertex, _vertexShaderBytes, "main", true),
-                    new ShaderDescription(ShaderStages.Fragment, _fragmentShaderBytes, "main", true)));
-
-
-            var resourceLayouts = new ResourceLayout[_uniformLayouts.Length];
+            _resourceLayouts = new ResourceLayout[_uniformLayouts.Length];
 
             for (int i = 0; i < _uniformLayouts.Length; i++)
             {
@@ -72,8 +60,34 @@ namespace EditTK.Graphics.Helpers.Internal
                 ResourceLayout? layout = _uniformLayouts[i].ResourceLayout;
 
                 Debug.Assert(layout != null);
-                resourceLayouts[i] = layout;
+                _resourceLayouts[i] = layout;
             }
+
+            CreatePipeline();
+        }
+
+        
+        private void CreatePipeline()
+        {
+            var factory = GraphicsAPI.ResourceFactory;
+
+            Debug.Assert(factory != null);
+
+            if (_shaderSet.Shaders != null)
+            {
+                for (int i = 0; i < _shaderSet.Shaders.Length; i++)
+                {
+                    _shaderSet.Shaders[i]?.Dispose();
+                }
+            }
+
+            _shaderSet = new ShaderSetDescription(
+                GetVertexLayouts(),
+                factory.CreateFromSpirv(
+                    new ShaderDescription(ShaderStages.Vertex, _vertexShaderSource.ShaderBytes, "main", true),
+                    new ShaderDescription(ShaderStages.Fragment, _fragmentShaderSource.ShaderBytes, "main", true)));
+
+            _pipeline?.Dispose();
 
             _pipeline = factory.CreateGraphicsPipeline(new GraphicsPipelineDescription(
                 _blendState ?? BlendStateDescription.SingleOverrideBlend,
@@ -81,7 +95,7 @@ namespace EditTK.Graphics.Helpers.Internal
                 _rasterizerState ?? RasterizerStateDescription.Default,
                 PrimitiveTopology.TriangleList,
                 _shaderSet,
-                resourceLayouts,
+                _resourceLayouts,
                 _outputDescription));
         }
     }

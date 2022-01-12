@@ -383,8 +383,8 @@ namespace EditTK.Testing
 
 
             _planeRenderer = new GenericModelRenderer<int, VertexPositionTexture>(
-                vertexShaderBytes: Encoding.UTF8.GetBytes(CheckerPlane_VertexCode),
-                fragmentShaderBytes: Encoding.UTF8.GetBytes(CheckerPlane_FragmentCode),
+                vertexShaderSource: Encoding.UTF8.GetBytes(CheckerPlane_VertexCode),
+                fragmentShaderSource: Encoding.UTF8.GetBytes(CheckerPlane_FragmentCode),
                 uniformLayouts: new[]
                 {
                     _sceneUniformLayout,
@@ -397,8 +397,8 @@ namespace EditTK.Testing
                 );
 
             _cubeRenderer = new GenericInstanceRenderer<int, VertexPositionColor, ObjectInstance>(
-                vertexShaderBytes: Encoding.UTF8.GetBytes(ArrowCube_VertexCode),
-                fragmentShaderBytes: Encoding.UTF8.GetBytes(ArrowCube_FragmentCode),
+                vertexShaderSource: Encoding.UTF8.GetBytes(ArrowCube_VertexCode),
+                fragmentShaderSource: Encoding.UTF8.GetBytes(ArrowCube_FragmentCode),
                 uniformLayouts: new[]
                 {
                     _sceneUniformLayout,
@@ -411,7 +411,7 @@ namespace EditTK.Testing
                 );
 
             _compositeShader = new ComputeShader(
-                computeShaderBytes: Encoding.UTF8.GetBytes(Composition_ComputeCode),
+                computeShaderSource: Encoding.UTF8.GetBytes(Composition_ComputeCode),
                 uniformLayouts: new[]
                 {
                     _compositeUniformLayout
