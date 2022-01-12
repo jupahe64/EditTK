@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Veldrid;
 using Veldrid.Utilities;
@@ -14,6 +15,8 @@ namespace EditTK.Graphics
     /// </summary>
     public static class GraphicsAPI
     {
+        private static readonly ManualResetEvent s_gdCanBeChanged = new(true);
+
         private static DisposeCollectorResourceFactory? s_factory;
 
         private static GraphicsDevice? s_gd;
@@ -25,6 +28,8 @@ namespace EditTK.Graphics
 
         internal static void SetGraphicsDevice(GraphicsDevice? gd)
         {
+            s_gdCanBeChanged.WaitOne();
+
             if (s_gd == gd)
                 return;
 
@@ -51,6 +56,46 @@ namespace EditTK.Graphics
                 resource.EnsureResourcesCreated();
             }
         }
+
+        #region locking
+
+        public sealed class ProtectionLock : IDisposable
+        {
+            internal ProtectionLock() => AddProtectionLock(this);
+            public void Dispose() => RemoveProtectionLock(this);
+        }
+
+        private static readonly HashSet<ProtectionLock> _lockOwners = new();
+
+        /// <summary>
+        /// Protects the <see cref="GraphicsDevice"/> from changing/destructing until the <see cref="ProtectionLock"/> is disposed
+        /// <para>This is only needed if you are using <see cref="GD"/> from a different Thread</para>
+        /// </summary>
+        /// <returns></returns>
+        public static ProtectionLock ProtectGraphicsDevice() => new();
+
+        private static void AddProtectionLock(ProtectionLock projectionLock)
+        {
+            lock (_lockOwners)
+            {
+                _lockOwners.Add(projectionLock);
+                s_gdCanBeChanged.Reset();
+            }
+        }
+
+        private static void RemoveProtectionLock(ProtectionLock projectionLock)
+        {
+            lock (_lockOwners)
+            {
+                _lockOwners.Remove(projectionLock);
+
+                if(_lockOwners.Count == 0)
+                    s_gdCanBeChanged.Set();
+            }
+        }
+
+        #endregion
+
 
         internal static void RegisterResourceHolder(ResourceHolder sharedResource)
         {

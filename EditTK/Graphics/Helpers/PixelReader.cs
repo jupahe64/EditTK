@@ -33,7 +33,7 @@ namespace EditTK.Graphics.Helpers
             {
                 _newPixelToRead.WaitOne();
 
-                try
+                using(GraphicsAPI.ProtectGraphicsDevice())
                 {
                     var before = GD;
 
@@ -49,16 +49,6 @@ namespace EditTK.Graphics.Helpers
                     GD.Unmap(_stagingTexture);
                     _onPixelRead!(pixel);
                 }
-                catch (Exception e)
-                {
-                    //this thing is very prone to exceptions, since it's a parallel thread
-                    //but we don't really need to worry about them
-
-                    Console.WriteLine("Failed to read pixel: " + e);
-                    continue;
-                }
-
-                
             }
         }
         #endregion
