@@ -9,6 +9,7 @@ using ImGuiNET;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -120,25 +121,48 @@ namespace EditTK.Testing
         private readonly SimpleCam _cam = new();
 
 
-        private readonly string CheckerPlane_VertexCode =
-            File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "checkerPlane.vert"));
+        private static byte[] ReadFileUtf8(string filePath)
+        {
+            return Encoding.UTF8.GetBytes(File.ReadAllText(filePath));
+        }
 
-        private readonly string CheckerPlane_FragmentCode =
-            File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "checkerPlane.frag"));
+        private record LoadedShader(string fileName, ShaderSource source)
+        {
+            public DateTime LastUpdate { get; set; } = DateTime.Now;
+        }
+
+        private List<LoadedShader> _loadedShaders = new();
+
+        private ShaderSource LoadShader(string fileName)
+        {
+            ShaderSource shaderSource = new(ReadFileUtf8(SystemUtils.RelativeFilePath("shaders", fileName)));
+
+            _loadedShaders.Add(new(fileName, shaderSource));
+
+            return shaderSource;
+        }
+
+        private void CheckShadersForUpdates()
+        {
+            foreach (var shader in _loadedShaders)
+            {
+                var (fileName, source) = shader;
+
+                string filePath = Path.Combine(_shaderReloadDirectory, fileName);
+
+                if (!File.Exists(filePath))
+                    continue;
+
+                if (shader.LastUpdate < File.GetLastWriteTime(filePath))
+                {
+                    shader.LastUpdate = DateTime.Now;
+
+                    source.Update(ReadFileUtf8(filePath));
+                }
+            }
+        }
 
 
-        private readonly string ArrowCube_VertexCode =
-            File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "arrowCube.vert"));
-
-        private readonly string ArrowCube_FragmentCode =
-            File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "arrowCube.frag"));
-
-
-        private readonly string Composition_ComputeCode =
-            File.ReadAllText(SystemUtils.RelativeFilePath("shaders", "composition.comp"));
-        
-        
-        
         readonly Matrix4x4[] _testTransforms = new[]
         {
             Matrix4x4.CreateTranslation(0, 0, 0),
@@ -148,8 +172,7 @@ namespace EditTK.Testing
             Matrix4x4.CreateScale(3,5,3)*Matrix4x4.CreateTranslation(7, 1, -6),
             Matrix4x4.CreateScale(8,2,2)*Matrix4x4.CreateTranslation(0, 0, -10),
         };
-
-
+        private readonly string _shaderReloadDirectory;
         private readonly string _givenWindowTitle;
         private bool _isDragging;
         private bool _stressTest;
@@ -157,6 +180,25 @@ namespace EditTK.Testing
 
         public TestWindow(WindowCreateInfo wci) : base(wci)
         {
+            string pathToProject = Path.GetFullPath(SystemUtils.RelativeFilePath("..", "..", ".."));
+
+            string shaderDirectory;
+
+            if (!Directory.Exists(Path.Combine(pathToProject, "shaders")))
+                pathToProject = Path.GetFullPath(Path.Combine(pathToProject, ".."));
+
+            if (Directory.Exists(shaderDirectory = Path.Combine(pathToProject, "shaders")))
+            {
+                Console.WriteLine("shaderDirectory found: " + shaderDirectory);
+
+                _shaderReloadDirectory = shaderDirectory;
+            }
+            else
+            {
+                _shaderReloadDirectory = SystemUtils.RelativeFilePath("shaders");
+            }
+
+
             _givenWindowTitle = Title;
 
             TimeTracker.AddIntervallHandler(x => _displayFps = _fps, 0.1);
@@ -165,7 +207,7 @@ namespace EditTK.Testing
 
             _gizmoDrawer = new GizmoDrawer(new Vector2(Width, Height), _cam);
 
-            orientationCubeTexture = new ImageSharpTexture(SystemUtils.RelativeFilePath("Resources","OrientationCubeTex.png"));
+            orientationCubeTexture = new ImageSharpTexture(SystemUtils.RelativeFilePath("Resources", "OrientationCubeTex.png"));
 
 
             _colorPixelReader = new PixelReader<RgbaByte>(PixelFormat.R8_G8_B8_A8_UNorm);
@@ -184,15 +226,15 @@ namespace EditTK.Testing
                 .GetLayout();
 
             _compositeUniformLayout = ShaderUniformLayoutBuilder.Get()
-                .AddResourceUniform("ub_Scene",      ResourceKind.UniformBuffer, ShaderStages.Compute)
+                .AddResourceUniform("ub_Scene", ResourceKind.UniformBuffer, ShaderStages.Compute)
                 .AddResourceUniform("OutputTexture", ResourceKind.TextureReadWrite, ShaderStages.Compute)
-                .AddTexture(        "Color0",        ShaderStages.Compute)
-                .AddTexture(        "Color1",        ShaderStages.Compute)
-                .AddTexture(        "Depth0",        ShaderStages.Compute)
-                .AddTexture(        "Depth1",        ShaderStages.Compute)
-                .AddSampler(        "LinearSampler", ShaderStages.Compute)
-                .AddTexture(        "Picking0",      ShaderStages.Compute)
-                .AddSampler(        "PointSampler",  ShaderStages.Compute)
+                .AddTexture("Color0", ShaderStages.Compute)
+                .AddTexture("Color1", ShaderStages.Compute)
+                .AddTexture("Depth0", ShaderStages.Compute)
+                .AddTexture("Depth1", ShaderStages.Compute)
+                .AddSampler("LinearSampler", ShaderStages.Compute)
+                .AddTexture("Picking0", ShaderStages.Compute)
+                .AddSampler("PointSampler", ShaderStages.Compute)
                 .GetLayout();
 
             _planeUniformLayout = ShaderUniformLayoutBuilder.Get()
@@ -226,7 +268,7 @@ namespace EditTK.Testing
                 float BEVEL = 0.1f;
 
                 Vector4 defaultColor = new(0, 0, 0, 1);
-                Vector4 lineColor    = new(1, 1, 1, 1);
+                Vector4 lineColor = new(1, 1, 1, 1);
 
                 Matrix4x4 mtx;
 
@@ -272,9 +314,9 @@ namespace EditTK.Testing
                 {
                     builder!.AddPlane(
                         new(Vector3.Transform(new Vector3(-w, 1, -w), mtx), defaultColor),
-                        new(Vector3.Transform(new Vector3( w, 1, -w), mtx), defaultColor),
-                        new(Vector3.Transform(new Vector3(-w, 1,  w), mtx), defaultColor),
-                        new(Vector3.Transform(new Vector3( w, 1,  w), mtx), defaultColor)
+                        new(Vector3.Transform(new Vector3(w, 1, -w), mtx), defaultColor),
+                        new(Vector3.Transform(new Vector3(-w, 1, w), mtx), defaultColor),
+                        new(Vector3.Transform(new Vector3(w, 1, w), mtx), defaultColor)
                     );
                 }
 
@@ -282,16 +324,16 @@ namespace EditTK.Testing
                 {
                     builder!.AddPlane(
                         new(Vector3.Transform(new Vector3(-w, 1, w), mtx), defaultColor),
-                        new(Vector3.Transform(new Vector3( w, 1, w), mtx), defaultColor),
+                        new(Vector3.Transform(new Vector3(w, 1, w), mtx), defaultColor),
                         new(Vector3.Transform(new Vector3(-w, m, m), mtx), lineColor),
-                        new(Vector3.Transform(new Vector3( w, m, m), mtx), lineColor)
+                        new(Vector3.Transform(new Vector3(w, m, m), mtx), lineColor)
                     );
 
                     builder!.AddPlane(
                         new(Vector3.Transform(new Vector3(-w, m, m), mtx), lineColor),
-                        new(Vector3.Transform(new Vector3( w, m, m), mtx), lineColor),
+                        new(Vector3.Transform(new Vector3(w, m, m), mtx), lineColor),
                         new(Vector3.Transform(new Vector3(-w, w, 1), mtx), defaultColor),
-                        new(Vector3.Transform(new Vector3( w, w, 1), mtx), defaultColor)
+                        new(Vector3.Transform(new Vector3(w, w, 1), mtx), defaultColor)
                     );
                 }
 
@@ -383,22 +425,22 @@ namespace EditTK.Testing
 
 
             _planeRenderer = new GenericModelRenderer<int, VertexPositionTexture>(
-                vertexShaderSource: Encoding.UTF8.GetBytes(CheckerPlane_VertexCode),
-                fragmentShaderSource: Encoding.UTF8.GetBytes(CheckerPlane_FragmentCode),
+                vertexShaderSource: LoadShader("checkerPlane.vert"),
+                fragmentShaderSource: LoadShader("checkerPlane.frag"),
                 uniformLayouts: new[]
                 {
                     _sceneUniformLayout,
                     _planeUniformLayout
                 },
                 outputDescription: _sceneMainFB.OutputDescription,
-                blendState: new BlendStateDescription(RgbaFloat.White, 
+                blendState: new BlendStateDescription(RgbaFloat.White,
                     BlendAttachmentDescription.AlphaBlend,
                     BlendAttachmentDescription.Disabled)
                 );
 
             _cubeRenderer = new GenericInstanceRenderer<int, VertexPositionColor, ObjectInstance>(
-                vertexShaderSource: Encoding.UTF8.GetBytes(ArrowCube_VertexCode),
-                fragmentShaderSource: Encoding.UTF8.GetBytes(ArrowCube_FragmentCode),
+                vertexShaderSource: LoadShader("arrowCube.vert"),
+                fragmentShaderSource: LoadShader("arrowCube.frag"),
                 uniformLayouts: new[]
                 {
                     _sceneUniformLayout,
@@ -411,7 +453,7 @@ namespace EditTK.Testing
                 );
 
             _compositeShader = new ComputeShader(
-                computeShaderSource: Encoding.UTF8.GetBytes(Composition_ComputeCode),
+                computeShaderSource: LoadShader("composition.comp"),
                 uniformLayouts: new[]
                 {
                     _compositeUniformLayout
@@ -426,7 +468,7 @@ namespace EditTK.Testing
 
             var deviceTex = orientationCubeTexture.CreateDeviceTexture(GD, factory);
 
-            
+
 
             GizmoDrawer.SetOrientationCubeTexture(ImGuiRenderer.GetOrCreateImGuiBinding(factory,
                 deviceTex));
@@ -451,7 +493,7 @@ namespace EditTK.Testing
             _sceneMainFB.SetSize(Width, Height);
             _sceneHighlightFB.SetSize(Width, Height);
 
-            
+
 
             _finalTexture = ResourceFactory.CreateTexture(TextureDescription.Texture2D(
                 Width, Height, 1, 1, PixelFormat.R8_G8_B8_A8_UNorm, TextureUsage.Sampled | TextureUsage.Storage));
@@ -460,19 +502,22 @@ namespace EditTK.Testing
             _sceneSet = _sceneUniformLayout.CreateResourceSet(_sceneUB!);
 
             _compositeSet = _compositeUniformLayout.CreateResourceSet(
-                ("ub_Scene",      _sceneUB!), 
-                ("OutputTexture", _finalTexture), 
-                ("Color0",        ResourceFactory.CreateTextureView(_sceneMainFB.ColorTextures[0])),
-                ("Color1",        ResourceFactory.CreateTextureView(_sceneHighlightFB.ColorTextures[0])),
-                ("Depth0",        ResourceFactory.CreateTextureView(_sceneMainFB.DepthTexture)),
-                ("Depth1",        ResourceFactory.CreateTextureView(_sceneHighlightFB.DepthTexture)),
+                ("ub_Scene", _sceneUB!),
+                ("OutputTexture", _finalTexture),
+                ("Color0", ResourceFactory.CreateTextureView(_sceneMainFB.ColorTextures[0])),
+                ("Color1", ResourceFactory.CreateTextureView(_sceneHighlightFB.ColorTextures[0])),
+                ("Depth0", ResourceFactory.CreateTextureView(_sceneMainFB.DepthTexture)),
+                ("Depth1", ResourceFactory.CreateTextureView(_sceneHighlightFB.DepthTexture)),
                 ("LinearSampler", GD!.LinearSampler),
-                ("Picking0",      ResourceFactory.CreateTextureView(_sceneHighlightFB.ColorTextures[1])),
-                ("PointSampler",  GD!.PointSampler));
+                ("Picking0", ResourceFactory.CreateTextureView(_sceneHighlightFB.ColorTextures[1])),
+                ("PointSampler", GD!.PointSampler));
         }
 
         protected override void Draw(float deltaSeconds, CommandList cl)
         {
+            CheckShadersForUpdates();
+
+
             var dl = ImGui.GetBackgroundDrawList();
 
 
@@ -529,8 +574,8 @@ namespace EditTK.Testing
 
             ImGui.Dummy(new Vector2(0, 20));
 
-            
-            
+
+
             ImGui.SetWindowFontScale(1.1f);
             ImGui.Text("Camera");
             ImGui.SetWindowFontScale(1f);
@@ -567,7 +612,7 @@ namespace EditTK.Testing
                 var size = new Vector2(20, 20);
 
                 topLeft += new Vector2(1);
-                ImGui.GetWindowDrawList().AddRectFilled(topLeft, topLeft+size,
+                ImGui.GetWindowDrawList().AddRectFilled(topLeft, topLeft + size,
                     0x55_00_00_00, 5);
 
                 topLeft -= new Vector2(2);
@@ -582,7 +627,7 @@ namespace EditTK.Testing
 
                 ImGui.Text($"  Id:   0x{_pickedId:X6}");
 
-                
+
             }
             imguiHovered |= ImGui.IsAnyItemHovered() || ImGui.IsWindowHovered();
 
@@ -590,8 +635,8 @@ namespace EditTK.Testing
             #endregion
 
             #region Top Bar
-            ImGui.SetNextWindowPos(new Vector2(200,0));
-            ImGui.SetNextWindowSize(new Vector2(Width-200, 80));
+            ImGui.SetNextWindowPos(new Vector2(200, 0));
+            ImGui.SetNextWindowSize(new Vector2(Width - 200, 80));
 
             ImGui.GetStyle().Colors[(int)ImGuiCol.Button] = new Vector4(0.3f, 0.3f, 0.3f, 0.2f);
             ImGui.GetStyle().Colors[(int)ImGuiCol.ButtonHovered] = new Vector4(0.4f, 0.5f, 0.6f, 0.4f);
@@ -599,7 +644,7 @@ namespace EditTK.Testing
             ImGui.Begin("Top", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoScrollWithMouse);
 
             {
-                Vector2 topLeft = new(Width / 2 - 380/2 - 200, 0);
+                Vector2 topLeft = new(Width / 2 - 380 / 2 - 200, 0);
 
                 bool isOpenGL = GD.BackendType == GraphicsBackend.OpenGL;
                 bool isMultipleWindows = WindowManager.MoreThanOneWindow();
@@ -611,7 +656,7 @@ namespace EditTK.Testing
 
 
                 #region Direct3D
-                ImGui.SetCursorPos(topLeft+new Vector2(0, 40));
+                ImGui.SetCursorPos(topLeft + new Vector2(0, 40));
                 if (ImGui.Button("Direct3D"))
                     WindowManager.RequestBackend(GraphicsBackend.Direct3D11);
                 #endregion
@@ -643,7 +688,7 @@ namespace EditTK.Testing
 
                 #region New Window
                 ImGui.SetCursorPos(topLeft + new Vector2(600, 40));
-                if (ImGui.Button("Toogle Stress Test: "+(_stressTest?"On":"Off")))
+                if (ImGui.Button("Toogle Stress Test: " + (_stressTest ? "On" : "Off")))
                     _stressTest = !_stressTest;
                 #endregion
             }
@@ -651,6 +696,11 @@ namespace EditTK.Testing
 
             imguiHovered |= ImGui.IsAnyItemHovered();
             ImGui.End();
+
+
+            //if (ImGui.Button("Test"))
+            //    _cubeRenderer.CreatePipeline();
+
             #endregion
 
 
@@ -674,7 +724,7 @@ namespace EditTK.Testing
                 rotX += MouseMoveDelta.Y * 0.005f;
             }
 
-            if(viewHovered)
+            if (viewHovered)
                 targetDistance -= MouseWheelDelta;
 
             if (_stressTest)
@@ -691,7 +741,7 @@ namespace EditTK.Testing
             }
 
 
-            if (_gizmoDrawer.OrientationCube(new Vector2(Width - 100, Height - 100), 50, out Vector3 hoveredFacingDirection) && 
+            if (_gizmoDrawer.OrientationCube(new Vector2(Width - 100, Height - 100), 50, out Vector3 hoveredFacingDirection) &&
                 Input.InputTracker.GetMouseButtonDown(MouseButton.Left))
             {
                 hoveredFacingDirection = Vector3.Normalize(hoveredFacingDirection);
@@ -731,7 +781,7 @@ namespace EditTK.Testing
 
             Matrix4x4 hoveredTransform = new Matrix4x4();
 
-            
+
             void RenderPass(bool isHightlight)
             {
                 cl.ClearColorTarget(0, new RgbaFloat(0, 0, 0.2f, 1));
@@ -743,7 +793,7 @@ namespace EditTK.Testing
                     cl.InsertDebugMarker("drawing plane");
                     _planeRenderer.Draw(cl, _planeModel, _sceneSet!, _planeSet!);
                 }
-                
+
                 _cubeInstances.Clear();
 
 
@@ -756,7 +806,7 @@ namespace EditTK.Testing
 
                         //transform = Matrix4x4.CreateScale(1.1f) * transform;
 
-                        if(!useSpecialHover)
+                        if (!useSpecialHover)
                             highlight = new Vector4(1, 1, 1, 0.25f);
                     }
 
@@ -804,7 +854,7 @@ namespace EditTK.Testing
                             highlight = new Vector4(1, 1, 0.5f, 0.25f);
                         }
 
-                        Cube(_testTransforms[i], (uint)i+2);
+                        Cube(_testTransforms[i], (uint)i + 2, highlight);
                     }
                 }
 
@@ -835,7 +885,7 @@ namespace EditTK.Testing
 
                 _cubeRenderer.Draw(cl, _cubeModel, _cubeInstances, _sceneSet!);
             }
-            
+
 
 
 
@@ -848,10 +898,10 @@ namespace EditTK.Testing
 
 
 
-            
+
             if (Hovered && WindowHovered)
             {
-                _colorPixelReader.ReadPixel(cl, _finalTexture!, (uint)MousePosition.X, (uint)MousePosition.Y, 
+                _colorPixelReader.ReadPixel(cl, _finalTexture!, (uint)MousePosition.X, (uint)MousePosition.Y,
                     CommandListFence,
                     pixel => _pickedColor = pixel);
 

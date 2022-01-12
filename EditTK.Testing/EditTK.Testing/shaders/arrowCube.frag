@@ -1,5 +1,7 @@
 ﻿#version 450
 
+#define UNIFORM_ARROW_SCALE
+
 float eval(float signedDistance, float w){
     return smoothstep(0.0,w,-signedDistance);
 }
@@ -44,12 +46,15 @@ void main()
     float w = fwidth(vPos.x);
     float r = 0.05 * min(boxScale.x,boxScale.z);
     float a = vCol.r;
-    //float a = abs(fragNrm.x)+abs(fragNrm.y)+abs(fragNrm.z);
-    //a = smoothstep(1.1,1.6,a);
+    
     a *= a*a;
     vec2 pos2d = vPos.xz;
    
+    #ifdef UNIFORM_ARROW_SCALE
     float s = min(boxScale.x,boxScale.z);
+    #else
+    vec2 s = boxScale.xz;
+    #endif
    
     float d = sdCapsule(pos2d, vec2(-.25,0)*s,vec2(0,.25)*s, r);
    
@@ -65,26 +70,7 @@ void main()
     outColor = mix(outColor, vec4(color,1),a);
 
 
-//    outColor = vec4(
-//        mix(
-//            mix(
-//                vec3(0,0,0.5),
-//                vec3(0,0.25,1),
-//                vPos.y*0.5 + 0.5
-//
-//            )*0.3,
-//            vec3(0,0.25,1),
-//
-//            pow(vCol.r,2.0)
-//        ), 1);
-//
-//    outColor.rgb = mix(outColor.rgb,highlightColor.rgb,highlightColor.a);
-//
-//    vec2 uv = gl_FragCoord.xy/ViewportSize;
-
-    //outColor = texture(sampler2D(T_Color0,S_Color0), uv) + vec4(uv,1.0,1.0);
-    //outColor = vec4(1.0);
-    //outPickingID = PickingID;
+    outColor.rgb = mix(outColor.rgb,highlightColor.rgb,highlightColor.a);
 
     outPickingID = id;
 
