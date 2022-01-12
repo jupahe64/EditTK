@@ -7,4 +7,4 @@ And for UI it uses ImGUI
 
 It's heavily WIP
 
-![image](https://user-images.githubusercontent.com/33004544/148708181-a111fe01-b041-4e80-b108-866c10f1b87c.png)
+![image](https://user-images.githubusercontent.com/33004544/148983375-9a7b8d3d-0793-42be-80bd-15a0f28cd891.png)
