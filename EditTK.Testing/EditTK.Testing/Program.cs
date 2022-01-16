@@ -62,7 +62,7 @@ namespace EditTK.Testing
 
                 var w = new TestWindow(windowCI);
 
-                w.CustomFlags = SDL_WindowFlags.Borderless;
+                //w.CustomFlags = SDL_WindowFlags.Borderless;
 
                 w.Run();
             }
