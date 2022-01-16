@@ -51,24 +51,21 @@ namespace EditTK.Testing
 
             WindowManager.SetDefaultFont(SystemUtils.RelativeFilePath("Resources", "Font.ttf"), 14);
 
-
             {
-                WindowCreateInfo windowCI = new()
-                {
+                WindowCreateInfo windowCI = new() {
                     X = 100,
                     Y = 100,
-                    WindowWidth = (int)(960 * Dpi),
-                    WindowHeight = (int)(540 * Dpi),
+                    WindowWidth = (int) (960 * Dpi),
+                    WindowHeight = (int) (540 * Dpi),
                     WindowTitle = "EditTK Playground"
                 };
 
                 var w = new TestWindow(windowCI);
 
+                w.CustomFlags = SDL_WindowFlags.Borderless;
+
                 w.Run();
             }
-
-
-            //w.Run();
         }
     }
 }

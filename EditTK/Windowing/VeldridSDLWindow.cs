@@ -94,6 +94,8 @@ namespace EditTK.Windowing
 
         public bool Hovered { get; private set; }
 
+        public SDL_WindowFlags CustomFlags { set; private get; }
+
         public VeldridSDLWindow(WindowCreateInfo wci)
         {
             _wci = wci;
@@ -108,7 +110,7 @@ namespace EditTK.Windowing
             _window?.Close();
 
             SDL_WindowFlags flags = SDL_WindowFlags.OpenGL | SDL_WindowFlags.Resizable
-                    | GetWindowFlags(_wci.WindowInitialState);
+                    | GetWindowFlags(_wci.WindowInitialState) | CustomFlags;
             if (_wci.WindowInitialState != WindowState.Hidden)
             {
                 flags |= SDL_WindowFlags.Shown;
