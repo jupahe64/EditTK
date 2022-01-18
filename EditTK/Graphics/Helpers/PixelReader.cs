@@ -12,13 +12,37 @@ using static EditTK.Graphics.GraphicsAPI;
 namespace EditTK.Graphics.Helpers
 {
     /// <summary>
+    /// Hides the type parameter of <see cref="PixelReader{TPixel}"/> to be used in Collections or other Contexts where the type isn't known ahead of time
+    /// </summary>
+    public interface IPixelReader
+    {
+        public Type GenericType { get; }
+
+        public void ReadPixel<TPixel>(CommandList cl, Texture texture, uint x, uint y, Fence commandListFence, PixelReader<TPixel>.PixelCallBack onPixelRead)
+            where TPixel : unmanaged
+        {
+            if(this is PixelReader<TPixel> reader)
+            {
+                reader.ReadPixel(cl, texture, x, y, commandListFence, onPixelRead);
+            }
+            else
+            {
+                throw new InvalidOperationException($"The generic type of {nameof(TPixel)} {typeof(TPixel)} " +
+                    $"does not match the generic type of the {GetType()}");
+            }
+        }
+    }
+
+    /// <summary>
     /// Can read pixels from a given texture of the matching format
     /// <para>see <see cref="ReadPixel(CommandList, Texture, uint, uint, Fence, PixelReader{TPixel}.PixelCallBack)"/></para>
     /// </summary>
     /// <typeparam name="TPixel"></typeparam>
-    public class PixelReader<TPixel> : ResourceHolder
+    public class PixelReader<TPixel> : ResourceHolder, IPixelReader
         where TPixel : unmanaged
     {
+        public Type GenericType => typeof(TPixel);
+
         public delegate void PixelCallBack(TPixel pixel);
 
         #region threading
@@ -99,7 +123,6 @@ namespace EditTK.Graphics.Helpers
         private readonly PixelFormat _readFormat;
         private Texture? _stagingTexture;
 
-        
         public PixelReader(PixelFormat format)
         {
             _isDepthFormat = (format == PixelFormat.D24_UNorm_S8_UInt || format == PixelFormat.D32_Float_S8_UInt);
@@ -150,7 +173,7 @@ namespace EditTK.Graphics.Helpers
                 cl.UpdateBuffer(_depthCopyCoordBuffer, 0, coords);
 
 
-                var set = _depthCopySets.GetOrCreate(texture, () => s_depthCopyCompute.UniformSetLayouts[0].CreateResourceSet(
+                var set = _depthCopySets.GetOrCreate(texture, () => s_depthCopyCompute?.UniformSetLayouts[0].CreateResourceSet(
                     ("ub_Coords", _depthCopyCoordBuffer!),
                     ("Out", _depthCopyTexture!),
                     ("In", texture),
@@ -173,25 +196,6 @@ namespace EditTK.Graphics.Helpers
             _onPixelRead = onPixelRead;
 
             _newPixelToRead.Set();
-
-
-            //new Thread(() => 
-            //{
-            //    try
-            //    {
-            //        GD!.WaitForFence(commandListFence, 1000);
-            //    }
-            //    catch (ObjectDisposedException)
-            //    {
-            //        return;
-            //    }
-
-            //    var view = GD.Map<TPixel>(_stagingTexture, MapMode.Read);
-            //    TPixel pixel = view[0];
-            //    GD.Unmap(_stagingTexture);
-            //    onPixelRead(pixel);
-
-            //}).Start();
         }
     }
 }
