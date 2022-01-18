@@ -22,7 +22,7 @@ namespace EditTK
     /// </summary>
     public static class WindowManager
     {
-        private static List<VeldridSDLWindow> _windows = new();
+        private static readonly List<VeldridSDLWindow> _windows = new();
 
         private static bool _running = false;
         private static string? _defaultFont_filePath;
@@ -91,7 +91,7 @@ namespace EditTK
             }
             else
             {
-                SwapchainDescription scDesc = new SwapchainDescription(
+                SwapchainDescription scDesc = new(
                 VeldridStartup.GetSwapchainSource(sdl_window),
                 window.Width,
                 window.Height,
@@ -175,6 +175,8 @@ namespace EditTK
                 }
 
                 Input.InputTracker.AfterWindowFrameInputs();
+
+                GraphicsAPI.GD!.WaitForIdle();
             }
 
             GraphicsAPI.GD!.WaitForIdle();

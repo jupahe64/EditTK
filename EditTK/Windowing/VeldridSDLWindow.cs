@@ -228,7 +228,7 @@ namespace EditTK.Windowing
 
             ImGui.SetCurrentContext(_imguiContext);
             ImGuiRenderer.Update(deltaSeconds, new OverrideableInputSnapshot(
-                InputTracker.FrameSnapshot, InputTracker.MousePosition, buttons));
+                InputTracker.FrameSnapshot!, InputTracker.MousePosition, buttons));
 
 
 
@@ -269,7 +269,6 @@ namespace EditTK.Windowing
                     _cl.End();
                     GD.SubmitCommands(_cl, CommandListFence);
                     GD.SwapBuffers(MainSwapchain);
-                    GD.WaitForIdle();
                 }
                 catch (DeviceChangedException)
                 {
