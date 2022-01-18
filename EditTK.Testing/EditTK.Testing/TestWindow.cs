@@ -892,8 +892,8 @@ namespace EditTK.Testing
             cl.SetFramebuffer(MainSwapchain.Framebuffer);
 
             _compositeShader.Dispatch(cl,
-                (uint)Math.Ceiling(Width / 16f),
-                (uint)Math.Ceiling(Height / 16f), 1,
+                (uint)Math.Ceiling(Width / (float)_compositeShader.GroupSizeX),
+                (uint)Math.Ceiling(Height / (float)_compositeShader.GroupSizeY), 1,
                 _compositeSet!);
 
 

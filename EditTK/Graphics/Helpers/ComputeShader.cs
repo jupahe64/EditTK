@@ -23,6 +23,10 @@ namespace EditTK.Graphics.Helpers
 
         public IReadOnlyList<ShaderUniformLayout> UniformSetLayouts => _uniformLayouts;
 
+        public uint GroupSizeX => _groupSizeX;
+        public uint GroupSizeY => _groupSizeY;
+        public uint GroupSizeZ => _groupSizeZ;
+
         /// <summary>
         /// Creates a new <see cref="GenericModelRenderer{TIndex, TVertex}"/>
         /// </summary>
