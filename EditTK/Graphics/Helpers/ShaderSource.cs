@@ -1,4 +1,4 @@
-﻿using System;
+﻿using Veldrid;
 
 namespace EditTK.Graphics.Helpers
 {
@@ -6,22 +6,17 @@ namespace EditTK.Graphics.Helpers
     /// Represents the source of a shader
     /// <para>the source can be reloaded/updated see <see cref="Update(byte[])"/></para>
     /// </summary>
-    public class ShaderSource
+    public class ShaderSource : UpdateableResource<byte[]>
     {
-        public event Action? Updated;
-
         public ShaderSource(byte[] shaderBytes)
+            : base(shaderBytes)
         {
-            ShaderBytes = shaderBytes;
+            
         }
 
-        public byte[] ShaderBytes { get; private set; }
+        public byte[] ShaderBytes => Resource;
 
-        public void Update(byte[] shaderBytes)
-        {
-            ShaderBytes = shaderBytes;
-            Updated?.Invoke();
-        }
+        public new void Update(byte[] shaderBytes) => base.Update(shaderBytes);
 
         public static implicit operator ShaderSource(byte[] bytes) => new(bytes);
     }

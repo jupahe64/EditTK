@@ -73,6 +73,8 @@ namespace EditTK.Testing
 
         private readonly GizmoDrawer _gizmoDrawer;
         private readonly ImageSharpTexture orientationCubeTexture;
+        private readonly SimpleFrameBuffer _sceneMainFB;
+        private readonly SimpleFrameBuffer _sceneHighlightFB;
         private readonly ShaderUniformLayout _sceneUniformLayout;
         private readonly ShaderUniformLayout _compositeUniformLayout;
         private readonly ShaderUniformLayout _planeUniformLayout;
@@ -91,17 +93,7 @@ namespace EditTK.Testing
         private readonly GenericInstanceRenderer<int, VertexPositionColor, ObjectInstance> _cubeRenderer;
         private readonly ComputeShader _compositeShader;
 
-        private readonly SimpleFrameBuffer _sceneMainFB = new(
-            PixelFormat.D32_Float_S8_UInt,
-
-            PixelFormat.R8_G8_B8_A8_UNorm,
-            PixelFormat.R32_UInt);
-
-        private readonly SimpleFrameBuffer _sceneHighlightFB = new(
-            PixelFormat.D32_Float_S8_UInt,
-
-            PixelFormat.R8_G8_B8_A8_UNorm,
-            PixelFormat.R32_UInt);
+        
 
         private readonly PixelReader<RgbaByte> _colorPixelReader;
         private readonly PixelReader<uint> _pidPixelReader;
@@ -208,6 +200,20 @@ namespace EditTK.Testing
             _gizmoDrawer = new GizmoDrawer(new Vector2(Width, Height), _cam);
 
             orientationCubeTexture = new ImageSharpTexture(SystemUtils.RelativeFilePath("Resources", "OrientationCubeTex.png"));
+
+
+
+            _sceneMainFB = new SimpleFrameBuffer(
+                PixelFormat.D32_Float_S8_UInt,
+
+                PixelFormat.R8_G8_B8_A8_UNorm,
+                PixelFormat.R32_UInt);
+
+            _sceneHighlightFB = new SimpleFrameBuffer(
+                PixelFormat.D32_Float_S8_UInt,
+
+                PixelFormat.R8_G8_B8_A8_UNorm,
+                PixelFormat.R32_UInt);
 
 
             _colorPixelReader = new PixelReader<RgbaByte>(PixelFormat.R8_G8_B8_A8_UNorm);
