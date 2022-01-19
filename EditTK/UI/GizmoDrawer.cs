@@ -11,7 +11,7 @@ using System.Runtime.CompilerServices;
 using EditTK.Core.Utils;
 using System.Diagnostics;
 
-namespace EditTK.Drawing
+namespace EditTK.UI
 {
     [Flags]
     public enum HoveredAxis
@@ -349,7 +349,7 @@ namespace EditTK.Drawing
 
                 if (Vector3.Transform(forward, rotMtx).Z < -0.001)
                 {
-                    var mpos = ImGui.GetMousePos();
+                    var mpos = ImGuiNET.ImGui.GetMousePos();
 
                     var center = Transform(Vector2.Zero);
 
@@ -499,7 +499,7 @@ namespace EditTK.Drawing
 
             float r = radius - 2;
 
-            Vector2 mousePos = ImGui.GetMousePos();
+            Vector2 mousePos = ImGuiNET.ImGui.GetMousePos();
 
             Vector3 center = transformMatrix.Translation;
             Vector2 center2d = WorldToScreen(center);
@@ -685,7 +685,7 @@ namespace EditTK.Drawing
         /// <returns><see langword="true"/> if the gizmo is hovered, <see langword="false"/> if not</returns>
         public bool ScaleGizmo(in Matrix4x4 transformMatrix, float radius, out HoveredAxis hoveredAxis)
         {
-            var mousePos = ImGui.GetMousePos();
+            var mousePos = ImGuiNET.ImGui.GetMousePos();
 
             s_transformMatVectors[0] = transformMatrix.Row0().Xyz();
             s_transformMatVectors[1] = transformMatrix.Row1().Xyz();
@@ -748,7 +748,7 @@ namespace EditTK.Drawing
         /// <returns><see langword="true"/> if the gizmo is hovered, <see langword="false"/> if not</returns>
         public bool TranslationGizmo(in Matrix4x4 transformMatrix, float lineLength, out HoveredAxis hoveredAxis)
         {
-            var mousePos = ImGui.GetMousePos();
+            var mousePos = ImGuiNET.ImGui.GetMousePos();
 
             s_transformMatVectors[0] = transformMatrix.Row0().Xyz();
             s_transformMatVectors[1] = transformMatrix.Row1().Xyz();

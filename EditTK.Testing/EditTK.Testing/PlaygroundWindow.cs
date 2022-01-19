@@ -13,7 +13,7 @@ using System.IO;
 using Veldrid.StartupUtilities;
 using EditTK.Windowing;
 using EditTK.Cameras;
-using EditTK.Drawing;
+using EditTK.UI;
 using EditTK.Graphics;
 using EditTK.Util;
 using EditTK.Core.Transform;
@@ -21,8 +21,8 @@ using EditTK.Testing;
 using Veldrid.ImageSharp;
 
 using static EditTK.Graphics.GraphicsAPI;
-using EditTK.Graphics.Rendering;
 using EditTK.Graphics.Helpers;
+using EditTK.Graphics.Rendering;
 
 namespace EditTK
 {
@@ -465,7 +465,7 @@ namespace EditTK
 
             ImGui.Begin("", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoMove);
 
-            ImGui.PushFont(MainFont??null);
+            ImGui.PushFont(MainFont ?? null);
 
             //lastFps = (1 / Math.Max(0.01f,deltaSeconds))*0.5f + lastFps * 0.5f;
             _lastFps = 1 / Math.Max(0.01f, deltaSeconds);
