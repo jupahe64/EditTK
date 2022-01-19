@@ -19,6 +19,7 @@ using Veldrid;
 using Veldrid.ImageSharp;
 using Veldrid.OpenGLBinding;
 using Veldrid.StartupUtilities;
+using Veldrid.Sdl2;
 
 using static EditTK.Graphics.GraphicsAPI;
 using static EditTK.Graphics.VeldridUtils;
@@ -170,7 +171,7 @@ namespace EditTK.Testing
         private bool _stressTest;
         private uint _pickedId;
 
-        public TestWindow(WindowCreateInfo wci) : base(wci)
+        public TestWindow(WindowCreateInfo wci, SDL_WindowFlags additionalFlags = default) : base(wci, additionalFlags)
         {
             string pathToProject = Path.GetFullPath(SystemUtils.RelativeFilePath("..", "..", ".."));
 
