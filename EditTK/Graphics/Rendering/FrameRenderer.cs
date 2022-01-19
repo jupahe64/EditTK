@@ -1,4 +1,5 @@
 ﻿using EditTK.Core.Common;
+using EditTK.UI;
 using EditTK.Graphics.Helpers;
 using System;
 using System.Collections.Generic;
@@ -15,17 +16,15 @@ namespace EditTK.Graphics.Rendering
     //TODO
 
 
-    public class TextureRef
+    public class RenderTextureRef
     {
         internal string Name { get; init; } = string.Empty;
         internal PixelFormat Format { get; init; } = PixelFormat.R8_G8_B8_A8_UNorm;
     }
 
-    public class PixelBufferRef
-    {
-        internal string Name { get; init; } = string.Empty;
-        internal PixelFormat Format { get; init; } = PixelFormat.R8_G8_B8_A8_UNorm;
-    }
+    public delegate void FrameRenderInstruction(FrameRenderer frameRenderer, CommandList cl);
+
+    public delegate ResourceSet CompositionResourceSetup(Texture outputTexture, FrameRenderer frameRenderer);
 
     public class FrameRenderer
     {
@@ -33,8 +32,9 @@ namespace EditTK.Graphics.Rendering
         public ResourceSet CommonResourceSet { get; private set; }
 
         private readonly Framebuffer[] _framebuffers;
-        private readonly Dictionary<TextureRef, Texture?> _textures = new();
-
+        private readonly Dictionary<RenderTextureRef, Texture?> _textures = new();
+        private readonly ResourceSet[] _compResources;
+        private readonly RenderTextureRef _outputTextureRef;
         private Framebuffer? _swapchainFramebuffer;
         private Framebuffer? _depthCopyFramebuffer;
         private Texture? _depthCopyTexture;
@@ -45,21 +45,25 @@ namespace EditTK.Graphics.Rendering
 
         private CommandList? _cl;
 
-        private List<(FrameRenderBuilder.DeviceTextureInfo textureInfo, TextureRef[] slots)> _textureSlotGroups;
-        private List<(FrameRenderBuilder.FrameBufferInfo info, int[] framebufferSlots)> _framebufferSlotGroups;
+        private (FrameRenderBuilder.DeviceTextureInfo textureInfo, RenderTextureRef[] slots)[] _textureSlotGroups;
+        private (FrameRenderBuilder.FrameBufferInfo info, int[] framebufferSlots)[] _framebufferSlotGroups;
+
+        private CompositionResourceSetup[] _compResourceSetups;
 
 
 
         public IReadOnlyList<Framebuffer> Framebuffers => _framebuffers;
-        public IReadOnlyDictionary<TextureRef, Texture?> Textures => _textures;
+        public IReadOnlyDictionary<RenderTextureRef, Texture?> Textures => _textures;
+        public IReadOnlyList<ResourceSet> CompResources => _compResources;
 
 
-        public FrameRenderer(FrameRenderBuilder builder, Vector2 viewportSize, IObjectHolder? objectHolder = null)
+        public FrameRenderer(FrameRenderBuilder builder, RenderTextureRef outputTexture)
         {
             var textureSlotGroups = builder.GetRenderTextureSlotGroups();
 
-            var slotRemapping = new Dictionary<int, int>(textureSlotGroups.SelectMany(
-                x => x.slots.Select(y => new KeyValuePair<int,int>(y, x.slots[0]))
+            var slotRemapping = new Dictionary<RenderTextureRef, RenderTextureRef>(textureSlotGroups.SelectMany(
+                x => x.slots.Select(y => new KeyValuePair<RenderTextureRef, RenderTextureRef>(
+                    builder.RenderTextureSlots[y], builder.RenderTextureSlots[x.slots[0]]))
                 ));
 
             _framebufferSlotGroups = builder.GetFramebufferSlotGroups(slotRemapping);
@@ -67,16 +71,53 @@ namespace EditTK.Graphics.Rendering
             _textureSlotGroups = textureSlotGroups.Select(x => (
                 x.textureInfo,
                 x.slots.Select(y => builder.RenderTextureSlots[y]).ToArray()
-                )).ToList();
+                )).ToArray();
 
             _framebuffers = new Framebuffer[builder.FramebufferSlotCount];
 
-            ObjectHolder = objectHolder;
+            _compResourceSetups = builder.CompResourceSetups.ToArray();
+
+            _outputTextureRef = outputTexture;
         }
 
-        public void Resize(Vector2 newSize)
+        public void SetSize(Vector2 size)
         {
+            uint width = (uint)size.X;
+            uint height = (uint)size.Y;
 
+            foreach (var (info, slots) in _textureSlotGroups)
+            {
+                TextureUsage renderUsage = (info.Format is PixelFormat.D24_UNorm_S8_UInt or PixelFormat.D32_Float_S8_UInt)
+                    ? TextureUsage.DepthStencil : TextureUsage.RenderTarget;
+
+                var texture = GraphicsAPI.ResourceFactory!.CreateTexture(TextureDescription.Texture2D(width, height, 1, 1, info.Format,
+                    TextureUsage.Sampled | renderUsage));
+
+                texture.Name = info.Name;
+
+                foreach (var textureRef in slots)
+                {
+                    _textures[textureRef] = texture;
+                }
+            }
+
+            foreach (var (info, slots) in _framebufferSlotGroups)
+            {
+                var framebuffer = GraphicsAPI.ResourceFactory!.CreateFramebuffer(new FramebufferDescription(
+                    info.requestedDepthTex == null ? null : _textures[info.requestedDepthTex],
+                    info.requestedColorTexs.Select(x => _textures[x]).ToArray())
+                    );
+
+                foreach (var slot in slots)
+                {
+                    _framebuffers[slot] = framebuffer;
+                }
+            }
+
+            for (int i = 0; i < _compResourceSetups.Length; i++)
+            {
+                _compResources[i] = _compResourceSetups[i](_textures[_outputTextureRef], this);
+            }
         }
 
 
@@ -135,9 +176,9 @@ namespace EditTK.Graphics.Rendering
 
             //Debug.Assert(_sceneFramebuffer != null);
 
-            ObjectHolder?.ForEachObject(obj => (obj as IDrawable)?.CreateGraphicsResources(factory));
+            //ObjectHolder?.ForEachObject(obj => (obj as IDrawable)?.CreateGraphicsResources(factory));
 
-            _cl = factory.CreateCommandList();
+            //_cl = factory.CreateCommandList();
 
 
         }

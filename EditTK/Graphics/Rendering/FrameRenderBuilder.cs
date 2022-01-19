@@ -1,6 +1,8 @@
-﻿using System;
+﻿using EditTK.Graphics.Helpers;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -14,27 +16,30 @@ namespace EditTK.Graphics.Rendering
     {
         internal record DeviceTextureInfo(string Name, PixelFormat Format);
 
-        internal record FrameBufferInfo(int requestedDepthTexSlot, int[] requestedColorTexSlots);
+        internal record FrameBufferInfo(RenderTextureRef? requestedDepthTex, RenderTextureRef[] requestedColorTexs);
 
         record TextureUsage(int TextureSlot, int Start, int End);
 
-        private static bool Collides(TextureUsage usage, TextureUsage other) => 
-            (usage.Start <= other.End) && 
+        private static bool Collides(TextureUsage usage, TextureUsage other) =>
+            (usage.Start <= other.End) &&
             (other.Start <= usage.End);
 
 
-        
-
-        private readonly List<TextureUsage> _renderTextureUsages   = new();
-        private readonly List<TextureRef> _renderTextureSlots      = new();
-        private readonly List<PixelBufferRef> _stagingTextureSlots = new();
-        private readonly List<Action<FrameRenderer>> _instructions = new();
-        private readonly List<(TextureRef? requestedDepthTex, TextureRef?[] requestedColorTexs)> _frameBufferSlots = new();
 
 
-        public IReadOnlyList<TextureRef> RenderTextureSlots => _renderTextureSlots;
-        public IReadOnlyList<PixelBufferRef> StagingTextureSlots => _stagingTextureSlots;
-        public IReadOnlyList<Action<FrameRenderer>> Instructions => _instructions;
+        private readonly List<TextureUsage> _renderTextureUsages = new();
+        private readonly List<RenderTextureRef> _renderTextureSlots = new();
+        private readonly List<IPixelReader> _pixelReaderSlots = new();
+        private readonly List<FrameRenderInstruction> _instructions = new();
+        private readonly List<FrameBufferInfo> _frameBufferSlots = new();
+
+        private readonly List<CompositionResourceSetup> _compResourceSlots = new();
+
+
+        internal IReadOnlyList<RenderTextureRef> RenderTextureSlots => _renderTextureSlots;
+        internal IReadOnlyList<IPixelReader> PixelReaderSlots => _pixelReaderSlots;
+        internal IReadOnlyList<FrameRenderInstruction> Instructions => _instructions;
+        internal IReadOnlyList<CompositionResourceSetup> CompResourceSetups => _compResourceSlots;
 
         public int FramebufferSlotCount => _frameBufferSlots.Count;
 
@@ -91,7 +96,7 @@ namespace EditTK.Graphics.Rendering
                     usagesForThisTexture.Add(usage); //should never be read from after this anyways but better safe than sorry
                 }
 
-                foreach (var (_,usageList) in _optimizedUsagesPerTexture)
+                foreach (var (_, usageList) in _optimizedUsagesPerTexture)
                 {
                     int[] slots = usageList.Select(x => x.TextureSlot).Distinct().ToArray();
 
@@ -108,9 +113,9 @@ namespace EditTK.Graphics.Rendering
             return textureSlotGroups;
         }
 
-        internal List<(FrameBufferInfo info, int[] framebufferSlots)> GetFramebufferSlotGroups(Dictionary<int, int> slotRemapping)
+        internal (FrameBufferInfo info, int[] framebufferSlots)[] GetFramebufferSlotGroups(Dictionary<RenderTextureRef, RenderTextureRef> slotRemapping)
         {
-            var nullTex = new TextureRef();
+            var nullTex = new RenderTextureRef();
 
             List<(FrameBufferInfo info, List<int> framebufferSlots)> uniqueGroups = new();
 
@@ -120,9 +125,9 @@ namespace EditTK.Graphics.Rendering
             {
 
 
-                int requestedDepthSlot = slotRemapping[_renderTextureSlots.IndexOf(requestedDepthTex ?? nullTex)];
+                RenderTextureRef? requestedDepthSlot = requestedDepthTex == null ? null : slotRemapping[requestedDepthTex];
 
-                List<int> requestedColorSlots = requestedColorTexs.Select(x => slotRemapping[_renderTextureSlots.IndexOf(x ?? nullTex)]).ToList();
+                List<RenderTextureRef> requestedColorSlots = requestedColorTexs.Select(x => slotRemapping[x]).ToList();
 
 
 
@@ -167,21 +172,21 @@ namespace EditTK.Graphics.Rendering
                 fbSlotIndex++;
             }
 
-            return uniqueGroups.Select(x => (x.info,x.framebufferSlots.ToArray())).ToList();
+            return uniqueGroups.Select(x => (x.info, x.framebufferSlots.ToArray())).ToArray();
         }
 
 
-        public static void EnsureCompatibleType<T>(PixelFormat pixelFormat) where T : struct
+        private static void EnsureCompatibleType<T>(PixelFormat pixelFormat) where T : struct
         {
             Type compontentType;
             int compontentCount;
 
-            [MethodImpl(MethodImplOptions.AggressiveInlining)] void uint8  (int c) { compontentCount = c; compontentType = typeof(byte); }
-            [MethodImpl(MethodImplOptions.AggressiveInlining)] void sint8  (int c) { compontentCount = c; compontentType = typeof(sbyte); }
-            [MethodImpl(MethodImplOptions.AggressiveInlining)] void uint16 (int c) { compontentCount = c; compontentType = typeof(ushort); }
-            [MethodImpl(MethodImplOptions.AggressiveInlining)] void sint16 (int c) { compontentCount = c; compontentType = typeof(short); }
-            [MethodImpl(MethodImplOptions.AggressiveInlining)] void uint32 (int c) { compontentCount = c; compontentType = typeof(uint); }
-            [MethodImpl(MethodImplOptions.AggressiveInlining)] void sint32 (int c) { compontentCount = c; compontentType = typeof(int); }
+            [MethodImpl(MethodImplOptions.AggressiveInlining)] void uint8(int c) { compontentCount = c; compontentType = typeof(byte); }
+            [MethodImpl(MethodImplOptions.AggressiveInlining)] void sint8(int c) { compontentCount = c; compontentType = typeof(sbyte); }
+            [MethodImpl(MethodImplOptions.AggressiveInlining)] void uint16(int c) { compontentCount = c; compontentType = typeof(ushort); }
+            [MethodImpl(MethodImplOptions.AggressiveInlining)] void sint16(int c) { compontentCount = c; compontentType = typeof(short); }
+            [MethodImpl(MethodImplOptions.AggressiveInlining)] void uint32(int c) { compontentCount = c; compontentType = typeof(uint); }
+            [MethodImpl(MethodImplOptions.AggressiveInlining)] void sint32(int c) { compontentCount = c; compontentType = typeof(int); }
             [MethodImpl(MethodImplOptions.AggressiveInlining)] void float16(int c) { compontentCount = c; compontentType = typeof(Half); }
             [MethodImpl(MethodImplOptions.AggressiveInlining)] void float32(int c) { compontentCount = c; compontentType = typeof(float); }
 
@@ -273,11 +278,58 @@ namespace EditTK.Graphics.Rendering
 
             for (int i = 0; i < fieldInfos.Length; i++)
             {
-                if(fieldInfos[i].FieldType!=compontentType)
+                if (fieldInfos[i].FieldType != compontentType)
                     throw new ArgumentException($"The type of field {fieldInfos[i].Name} ({fieldInfos[i].FieldType}) " +
                     $"does not match the field type expected by the {nameof(PixelFormat)} {pixelFormat} ({compontentType.Name})");
             }
         }
+
+
+
+        public FrameRenderBuilder CreateRenderTexture(string name, PixelFormat pixelFormat, out RenderTextureRef textureRef)
+        {
+            textureRef = new RenderTextureRef() { Name = name, Format = pixelFormat };
+            _renderTextureSlots.Add(textureRef);
+
+            return this;
+        }
+
+        public FrameRenderBuilder RenderPass(string debugName, RenderTextureRef? depthTexture, RenderTextureRef[] colorTextures, FrameRenderInstruction pass)
+        {
+            _frameBufferSlots.Add(new(depthTexture, colorTextures));
+
+            _instructions.Add((fr, cl) =>
+            {
+                cl.PushDebugGroup(debugName);
+                cl.SetFramebuffer(fr.Framebuffers[_frameBufferSlots.Count - 1]);
+                pass(fr, cl);
+                cl.PopDebugGroup();
+            });
+
+            return this;
+        }
+
+        public FrameRenderBuilder Compose(ComputeShader compositionShader, Vector2 size, CompositionResourceSetup setup, PixelFormat pixelFormat, out RenderTextureRef outputTexture)
+        {
+            CreateRenderTexture("OutputTexture", pixelFormat, out outputTexture);
+
+            _compResourceSlots.Add(setup);
+
+            _instructions.Add((fr, cl) =>
+            {
+                compositionShader.Dispatch(cl, (uint)Math.Ceiling(size.X / compositionShader.GroupSizeX),
+                                               (uint)Math.Ceiling(size.Y / compositionShader.GroupSizeY), 1,
+                                               fr.CompResources[_compResourceSlots.Count - 1]);
+            });
+
+            return this;
+        }
+
+        public FrameRenderer GetFrameRenderer(RenderTextureRef finalOutputTexture)
+        {
+            return new FrameRenderer(this, finalOutputTexture);
+        }
+
 
     }
 }
