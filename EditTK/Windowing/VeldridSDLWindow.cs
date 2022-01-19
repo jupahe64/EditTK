@@ -13,6 +13,7 @@ using EditTK.Core.Timing;
 using static EditTK.Graphics.GraphicsAPI;
 using EditTK.Graphics;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace EditTK.Windowing
 {
@@ -94,10 +95,12 @@ namespace EditTK.Windowing
 
         public bool Hovered { get; private set; }
 
-        public VeldridSDLWindow(WindowCreateInfo wci)
+        private SDL_WindowFlags _additionalFlags;
+
+        public VeldridSDLWindow(WindowCreateInfo wci, [Optional] SDL_WindowFlags additionalFlags)
         {
             _wci = wci;
-            
+            _additionalFlags = additionalFlags;
 
             TimeTracker = new GlobalTimeTracker();
             
@@ -108,7 +111,7 @@ namespace EditTK.Windowing
             _window?.Close();
 
             SDL_WindowFlags flags = SDL_WindowFlags.OpenGL | SDL_WindowFlags.Resizable
-                    | GetWindowFlags(_wci.WindowInitialState);
+                    | GetWindowFlags(_wci.WindowInitialState) | _additionalFlags;
             if (_wci.WindowInitialState != WindowState.Hidden)
             {
                 flags |= SDL_WindowFlags.Shown;
