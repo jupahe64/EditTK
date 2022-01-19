@@ -97,7 +97,7 @@ namespace EditTK.Windowing
 
         private SDL_WindowFlags _additionalFlags;
 
-        public VeldridSDLWindow(WindowCreateInfo wci, [Optional] SDL_WindowFlags additionalFlags)
+        public VeldridSDLWindow(WindowCreateInfo wci, SDL_WindowFlags additionalFlags = default)
         {
             _wci = wci;
             _additionalFlags = additionalFlags;

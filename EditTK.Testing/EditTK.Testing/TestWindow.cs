@@ -171,7 +171,7 @@ namespace EditTK.Testing
         private bool _stressTest;
         private uint _pickedId;
 
-        public TestWindow(WindowCreateInfo wci, [Optional] SDL_WindowFlags additionalFlags) : base(wci, additionalFlags)
+        public TestWindow(WindowCreateInfo wci, SDL_WindowFlags additionalFlags = default) : base(wci, additionalFlags)
         {
             string pathToProject = Path.GetFullPath(SystemUtils.RelativeFilePath("..", "..", ".."));
 
