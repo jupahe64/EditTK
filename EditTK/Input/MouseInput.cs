@@ -1,4 +1,5 @@
-﻿using EditTK.Input;
+﻿using EditTK.Core.Input;
+using EditTK.Input;
 using System;
 using System.Collections.Generic;
 using System.Linq;

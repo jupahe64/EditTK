@@ -13,19 +13,27 @@ using System.IO;
 using Veldrid.StartupUtilities;
 using EditTK.Windowing;
 using EditTK.Cameras;
-using EditTK.UI;
 using EditTK.Graphics;
 using EditTK.Util;
-using EditTK.Core.Transform;
+using EditTK.Core3D.Transform;
 using EditTK.Testing;
 using Veldrid.ImageSharp;
 
 using static EditTK.Graphics.GraphicsAPI;
-using EditTK.Graphics.Helpers;
-using EditTK.Graphics.Rendering;
+using EditTK.Graphics.Common;
+using EditTK.Core3D.Common;
 
 namespace EditTK
 {
+    public interface IDrawable
+    {
+        void CreateGraphicsResources(ResourceFactory factory);
+        void DestroyGraphicsResources();
+        void Draw(CommandList cl, ResourceSet sceneParamsSet, Graphics.Scene.Pass pass);
+        void UpdateHighlight(Vector4 highlight);
+        bool HasHighlight();
+    }
+
     /// <summary>
     /// An old test window that got corrupted very fast (on some backends)
     /// <para>It had some really cool effects and functionality but I had to comment out almost all of it</para>
@@ -632,7 +640,7 @@ namespace EditTK
             _simpleCam.SetViewMatrix(ViewMatrix);
             _simpleCam.SetProjectionMatrix(ProjectionMatrix);
 
-            _gizmoDrawer.BeginFrame(_drawlist);
+            _gizmoDrawer.BeginFrame(_drawlist, true);
 
             if (blending)
             {
@@ -762,7 +770,7 @@ namespace EditTK
 
             foreach (var obj in _objects)
             {
-                (obj as IDrawable)?.Draw(cl, _sceneResourceSet, Pass.OPAQUE);
+                (obj as IDrawable)?.Draw(cl, _sceneResourceSet, Graphics.Scene.Pass.OPAQUE);
             }
 
             _planeRenderer.Draw(cl, _sceneResourceSet);
@@ -831,7 +839,7 @@ namespace EditTK
 
             foreach (var obj in _objects)
             {
-                (obj as IDrawable)?.Draw(cl, _sceneResourceSet, Pass.HIGHLIGHT_ONLY);
+                (obj as IDrawable)?.Draw(cl, _sceneResourceSet, Graphics.Scene.Pass.HIGHLIGHT_ONLY);
             }
 
             if (mouseIsInBounds)
@@ -855,7 +863,7 @@ namespace EditTK
 
             if (_currentHoveredID>0)
             {
-                (_objects[_currentHoveredID - 1] as IDrawable)?.Draw(cl, _sceneResourceSet, Pass.OPAQUE);
+                (_objects[_currentHoveredID - 1] as IDrawable)?.Draw(cl, _sceneResourceSet, Graphics.Scene.Pass.OPAQUE);
             }
 
 

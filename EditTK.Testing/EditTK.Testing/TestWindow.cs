@@ -1,8 +1,7 @@
 ﻿using EditTK.Cameras;
-using EditTK.Core.Utils;
-using EditTK.UI;
+using EditTK.Core.Util;
 using EditTK.Graphics;
-using EditTK.Graphics.Helpers;
+using EditTK.Graphics.Common;
 using EditTK.Util;
 using EditTK.Windowing;
 using ImGuiNET;
@@ -525,7 +524,192 @@ namespace EditTK.Testing
             CheckShadersForUpdates();
 
 
-            var dl = ImGui.GetBackgroundDrawList();
+
+
+            #region Scene Rendering
+            Vector3 camPlaneNormal = -_cam.ForwardVector / _far;
+
+
+            var _sceneUBData = new SceneUB(
+                _cam.ViewMatrix * _cam.ProjectionMatrix,
+                camPlaneNormal, Vector3.Dot(camPlaneNormal, _cam.Position),
+                new Vector2(Width, Height),
+                0, 0,
+                Vector4.Zero
+                );
+
+            cl.UpdateBuffer(_sceneUB, 0, _sceneUBData);
+
+
+            float baseScale = _stressTest ? 3.75f : 0.75f;
+
+            cl.UpdateBuffer(_planeUB, 0,
+                Matrix4x4.CreateScale((float)(baseScale + Math.Sin(TimeTracker.Time) * 0.25)));
+
+
+            bool useSpecialHover = true;
+
+
+            Matrix4x4 hoveredTransform = new Matrix4x4();
+
+
+            void RenderPass(bool isHightlight)
+            {
+                cl.ClearColorTarget(0, new RgbaFloat(0, 0, 0.2f, 1));
+                cl.ClearColorTarget(1, RgbaFloat.Clear);
+                cl.ClearDepthStencil(1f);
+
+                if (!isHightlight)
+                {
+                    cl.InsertDebugMarker("drawing plane");
+                    _planeRenderer.Draw(cl, _planeModel, _sceneSet!, _planeSet!);
+                }
+
+                _cubeInstances.Clear();
+
+
+
+                void Cube(Matrix4x4 transform, uint id, Vector4 highlight = new Vector4())
+                {
+                    if (id == _pickedId)
+                    {
+                        hoveredTransform = transform;
+
+                        //transform = Matrix4x4.CreateScale(1.1f) * transform;
+
+                        if (!useSpecialHover)
+                            highlight = new Vector4(1, 1, 1, 0.25f);
+                    }
+
+                    if (isHightlight)
+                    {
+                        if (highlight.W > 0)
+                            highlight.W = 1;
+                        else
+                            return;
+                    }
+
+                    _cubeInstances.Add(new ObjectInstance(transform, id, highlight));
+                }
+
+                if (_stressTest)
+                {
+                    //120,000 cubes
+
+                    for (int i = 0; i < 300; i++)
+                    {
+                        for (int j = 0; j < 400; j++)
+                        {
+                            Matrix4x4 mtx =
+                                Matrix4x4.CreateScale(Math.Max(0, (float)Math.Sin(TimeTracker.Time + i * j))) *
+                                Matrix4x4.CreateTranslation(300 - i * 2, 0, 400 - j * 2);
+
+
+                            uint id = (uint)(i + 300 * j);
+
+
+                            Cube(mtx, 2 + id);
+
+
+                        }
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < _testTransforms.Length; i++)
+                    {
+                        var highlight = Vector4.Zero;
+
+                        if (i == 1)
+                        {
+                            highlight = new Vector4(1, 1, 0.5f, 0.25f);
+                        }
+
+                        Cube(_testTransforms[i], (uint)i + 2, highlight);
+                    }
+                }
+
+
+
+
+                _cubeRenderer.Draw(cl, _cubeModel, _cubeInstances, _sceneSet!);
+            }
+
+
+            _sceneMainFB.Use(cl);
+            RenderPass(false);
+            _sceneHighlightFB.Use(cl);
+            RenderPass(true);
+
+            if (_pickedId >= 2 && useSpecialHover)
+            {
+                _sceneUBData.CamPlaneNormal = Vector3.Zero;
+                _sceneUBData.CamPlaneOffset = 0;
+                _sceneUBData.HoverColor = new Vector4(1, 0.5f, 0.2f, 1.0f);
+
+                cl.UpdateBuffer(_sceneUB, 0, _sceneUBData);
+
+                _cubeInstances.Clear();
+
+                _cubeInstances.Add(new ObjectInstance(hoveredTransform, _pickedId,
+                    Vector4.One));
+
+                _cubeRenderer.Draw(cl, _cubeModel, _cubeInstances, _sceneSet!);
+            }
+
+
+
+
+            cl.SetFramebuffer(MainSwapchain.Framebuffer);
+
+            _compositeShader.Dispatch(cl,
+                (uint)Math.Ceiling(Width / (float)_compositeShader.GroupSizeX),
+                (uint)Math.Ceiling(Height / (float)_compositeShader.GroupSizeY), 1,
+                _compositeSet!);
+
+
+            #endregion
+
+
+
+
+            #region UI
+
+            #region Back (Scene View)
+            ImGui.GetStyle().WindowPadding = new Vector2(0, 0);
+
+            ImGui.SetNextWindowPos(new Vector2(0, 0));
+            ImGui.SetNextWindowSize(new Vector2(Width / 2, Height));
+
+            ImGui.Begin("Back", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoBringToFrontOnFocus);
+
+            ImGui.Dummy(new Vector2(Width, Height));
+
+            if (ImGui.IsItemHovered() && WindowHovered && !_gizmoDrawer.WasAnythingHovered())
+            {
+                _colorPixelReader.ReadPixel(cl, _finalTexture!, (uint)MousePosition.X, (uint)MousePosition.Y,
+                    CommandListFence,
+                    pixel => _pickedColor = pixel);
+
+                _depthPixelReader.ReadPixel(cl, _sceneMainFB.DepthTexture!, (uint)MousePosition.X, (uint)MousePosition.Y,
+                    CommandListFence,
+                    pixel => _pickedDepth = pixel * _far);
+
+                _pidPixelReader.ReadPixel(cl, _sceneMainFB.ColorTextures[1]!, (uint)MousePosition.X, (uint)MousePosition.Y,
+                    CommandListFence,
+                    pixel => _pickedId = pixel);
+
+            }
+            else
+            {
+                _pickedColor = RgbaByte.Clear;
+                _pickedDepth = 0;
+                _pickedId = 0;
+            }
+
+            var dl = ImGui.GetWindowDrawList();
+
+
 
 
             var rotMtx = Matrix4x4.CreateRotationY(rotY) * Matrix4x4.CreateRotationX(rotX);
@@ -546,8 +730,12 @@ namespace EditTK.Testing
                 new Vector2(0, Height), new Vector2(Width, 0));
             }
 
+            Gizmos(dl);
 
-            #region Test UI
+            ImGui.End();
+            #endregion
+
+
             bool imguiHovered = false;
 
 
@@ -715,214 +903,56 @@ namespace EditTK.Testing
 
             #region Gizmos
 
-            bool viewHovered = Hovered && !imguiHovered;
-
-            if (viewHovered && GetMouseButtonDown(MouseButton.Right))
-                _isDragging = true;
-
-            if (!GetMouseButton(MouseButton.Right))
-                _isDragging = false;
-
-            _gizmoDrawer.BeginFrame(dl);
-
-            if (_isDragging)
+            void Gizmos(ImDrawListPtr dl)
             {
-                rotY += MouseMoveDelta.X * 0.005f;
-                rotX += MouseMoveDelta.Y * 0.005f;
-            }
+                bool viewHovered = ImGui.IsItemHovered();
 
-            if (viewHovered)
-                targetDistance -= MouseWheelDelta;
+                if (viewHovered && GetMouseButtonDown(MouseButton.Right))
+                    _isDragging = true;
 
-            if (_stressTest)
-            {
-                _gizmoDrawer.TranslationGizmo(Matrix4x4.CreateTranslation(0, 0, 0), 64, out _);
-            }
-            else
-            {
-                _gizmoDrawer.RotationGizmo(_testTransforms[0], 64, out _);
+                if (!GetMouseButton(MouseButton.Right))
+                    _isDragging = false;
 
-                _gizmoDrawer.ScaleGizmo(_testTransforms[1], 64, out _);
+                _gizmoDrawer.BeginFrame(dl, viewHovered);
 
-                _gizmoDrawer.TranslationGizmo(_testTransforms[2], 64, out _);
-            }
-
-
-            if (_gizmoDrawer.OrientationCube(new Vector2(Width - 100, Height - 100), 50, out Vector3 hoveredFacingDirection) &&
-                Input.InputTracker.GetMouseButtonDown(MouseButton.Left))
-            {
-                hoveredFacingDirection = Vector3.Normalize(hoveredFacingDirection);
-
-                rotY = (float)Math.Atan2(-hoveredFacingDirection.X, hoveredFacingDirection.Z);
-                rotX = (float)Math.Asin(hoveredFacingDirection.Y);
-
-                if (hoveredFacingDirection.X == 0 && hoveredFacingDirection.Z == 0)
-                    rotY = 0;
-            }
-            #endregion
-
-
-            #region Scene Rendering
-            Vector3 camPlaneNormal = -_cam.ForwardVector / _far;
-
-
-            var _sceneUBData = new SceneUB(
-                _cam.ViewMatrix * _cam.ProjectionMatrix,
-                camPlaneNormal, Vector3.Dot(camPlaneNormal, _cam.Position),
-                new Vector2(Width, Height),
-                0, 0,
-                Vector4.Zero
-                );
-
-            cl.UpdateBuffer(_sceneUB, 0, _sceneUBData);
-
-
-            float baseScale = _stressTest ? 3.75f : 0.75f;
-
-            cl.UpdateBuffer(_planeUB, 0,
-                Matrix4x4.CreateScale((float)(baseScale + Math.Sin(TimeTracker.Time) * 0.25)));
-
-
-            bool useSpecialHover = true;
-
-
-            Matrix4x4 hoveredTransform = new Matrix4x4();
-
-
-            void RenderPass(bool isHightlight)
-            {
-                cl.ClearColorTarget(0, new RgbaFloat(0, 0, 0.2f, 1));
-                cl.ClearColorTarget(1, RgbaFloat.Clear);
-                cl.ClearDepthStencil(1f);
-
-                if (!isHightlight)
+                if (_isDragging)
                 {
-                    cl.InsertDebugMarker("drawing plane");
-                    _planeRenderer.Draw(cl, _planeModel, _sceneSet!, _planeSet!);
+                    rotY += MouseMoveDelta.X * 0.005f;
+                    rotX += MouseMoveDelta.Y * 0.005f;
                 }
 
-                _cubeInstances.Clear();
-
-
-
-                void Cube(Matrix4x4 transform, uint id, Vector4 highlight = new Vector4())
-                {
-                    if (id == _pickedId)
-                    {
-                        hoveredTransform = transform;
-
-                        //transform = Matrix4x4.CreateScale(1.1f) * transform;
-
-                        if (!useSpecialHover)
-                            highlight = new Vector4(1, 1, 1, 0.25f);
-                    }
-
-                    if (isHightlight)
-                    {
-                        if (highlight.W > 0)
-                            highlight.W = 1;
-                        else
-                            return;
-                    }
-
-                    _cubeInstances.Add(new ObjectInstance(transform, id, highlight));
-                }
+                if (viewHovered)
+                    targetDistance -= MouseWheelDelta;
 
                 if (_stressTest)
                 {
-                    //120,000 cubes
-
-                    for (int i = 0; i < 300; i++)
-                    {
-                        for (int j = 0; j < 400; j++)
-                        {
-                            Matrix4x4 mtx =
-                                Matrix4x4.CreateScale(Math.Max(0, (float)Math.Sin(TimeTracker.Time + i * j))) *
-                                Matrix4x4.CreateTranslation(300 - i * 2, 0, 400 - j * 2);
-
-
-                            uint id = (uint)(i + 300 * j);
-
-
-                            Cube(mtx, 2 + id);
-
-
-                        }
-                    }
+                    _gizmoDrawer.TranslationGizmo(Matrix4x4.CreateTranslation(0, 0, 0), 64, out _);
                 }
                 else
                 {
-                    for (int i = 0; i < _testTransforms.Length; i++)
-                    {
-                        var highlight = Vector4.Zero;
+                    _gizmoDrawer.RotationGizmo(_testTransforms[0], 64, out _);
 
-                        if (i == 1)
-                        {
-                            highlight = new Vector4(1, 1, 0.5f, 0.25f);
-                        }
+                    _gizmoDrawer.ScaleGizmo(_testTransforms[1], 64, out _);
 
-                        Cube(_testTransforms[i], (uint)i + 2, highlight);
-                    }
+                    _gizmoDrawer.TranslationGizmo(_testTransforms[2], 64, out _);
                 }
 
 
+                if (_gizmoDrawer.OrientationCube(new Vector2(Width - 100, Height - 100), 50, out Vector3 hoveredFacingDirection) &&
+                    Input.InputTracker.GetMouseButtonDown(MouseButton.Left))
+                {
+                    hoveredFacingDirection = Vector3.Normalize(hoveredFacingDirection);
 
+                    rotY = (float)Math.Atan2(-hoveredFacingDirection.X, hoveredFacingDirection.Z);
+                    rotX = (float)Math.Asin(hoveredFacingDirection.Y);
 
-                _cubeRenderer.Draw(cl, _cubeModel, _cubeInstances, _sceneSet!);
+                    if (hoveredFacingDirection.X == 0 && hoveredFacingDirection.Z == 0)
+                        rotY = 0;
+                }
             }
-
-
-            _sceneMainFB.Use(cl);
-            RenderPass(false);
-            _sceneHighlightFB.Use(cl);
-            RenderPass(true);
-
-            if (_pickedId >= 2 && useSpecialHover)
-            {
-                _sceneUBData.CamPlaneNormal = Vector3.Zero;
-                _sceneUBData.CamPlaneOffset = 0;
-                _sceneUBData.HoverColor = new Vector4(1, 0.5f, 0.2f, 1.0f);
-
-                cl.UpdateBuffer(_sceneUB, 0, _sceneUBData);
-
-                _cubeInstances.Clear();
-
-                _cubeInstances.Add(new ObjectInstance(hoveredTransform, _pickedId,
-                    Vector4.One));
-
-                _cubeRenderer.Draw(cl, _cubeModel, _cubeInstances, _sceneSet!);
-            }
-
-
-
-
-            cl.SetFramebuffer(MainSwapchain.Framebuffer);
-
-            _compositeShader.Dispatch(cl,
-                (uint)Math.Ceiling(Width / (float)_compositeShader.GroupSizeX),
-                (uint)Math.Ceiling(Height / (float)_compositeShader.GroupSizeY), 1,
-                _compositeSet!);
-
-
-
-
-            if (Hovered && WindowHovered)
-            {
-                _colorPixelReader.ReadPixel(cl, _finalTexture!, (uint)MousePosition.X, (uint)MousePosition.Y,
-                    CommandListFence,
-                    pixel => _pickedColor = pixel);
-
-                _depthPixelReader.ReadPixel(cl, _sceneMainFB.DepthTexture!, (uint)MousePosition.X, (uint)MousePosition.Y,
-                    CommandListFence,
-                    pixel => _pickedDepth = pixel * _far);
-
-                _pidPixelReader.ReadPixel(cl, _sceneMainFB.ColorTextures[1]!, (uint)MousePosition.X, (uint)MousePosition.Y,
-                    CommandListFence,
-                    pixel => _pickedId = pixel);
-
-            }
-
             #endregion
+
+
         }
     }
 }

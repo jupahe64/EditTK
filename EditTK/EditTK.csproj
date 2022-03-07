@@ -22,6 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\EditTK.Core3D\EditTK.Core3D.csproj" />
     <ProjectReference Include="..\EditTK.Core\EditTK.Core.csproj" />
   </ItemGroup>
 

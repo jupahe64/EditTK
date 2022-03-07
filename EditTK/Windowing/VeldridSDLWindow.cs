@@ -14,6 +14,7 @@ using static EditTK.Graphics.GraphicsAPI;
 using EditTK.Graphics;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace EditTK.Windowing
 {
@@ -22,6 +23,50 @@ namespace EditTK.Windowing
     /// </summary>
     public unsafe abstract class VeldridSDLWindow
     {
+        #region WINAPI
+        private struct PaintStruct
+        {
+            public IntPtr hdc;
+            public bool fErase;
+            public Rectangle rcPaint;
+            public bool fRestore;
+            public bool fIncUpdate;
+            
+            //BYTE rgbReserved[32];
+
+            public long rgbReserved0;
+            public long rgbReserved1;
+            public long rgbReserved2;
+            public long rgbReserved3;
+        }
+
+        private static uint BLACK_BRUSH = 4;
+
+        private static uint ETO_OPAQUE = 0x0002;
+
+
+        [DllImport("dwmapi.dll", SetLastError = true)]
+        private static extern bool DwmSetWindowAttribute(IntPtr handle, int param, in int value, int size);
+
+
+        [DllImport("uxtheme.dll", SetLastError = true)]
+        private static extern bool SetWindowTheme(IntPtr handle, string? subAppName, string? subIDList);
+
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr BeginPaint(IntPtr handle, out PaintStruct ps);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern void EndPaint(IntPtr handle, in PaintStruct ps);
+
+
+        [DllImport("gdi32.dll", SetLastError = true)]
+        private static extern IntPtr SetBkColor(IntPtr hdc, uint color);
+
+        [DllImport("gdi32.dll", SetLastError = true)]
+        private static extern IntPtr ExtTextOutA(IntPtr hdc, int x, int y, uint options, in Rectangle lprect, string? lpString, uint c, in int lpDx);
+        #endregion
+
         private class OverrideableInputSnapshot : InputSnapshot
         {
             InputSnapshot _baseSnapshot;
@@ -111,11 +156,8 @@ namespace EditTK.Windowing
             _window?.Close();
 
             SDL_WindowFlags flags = SDL_WindowFlags.OpenGL | SDL_WindowFlags.Resizable
-                    | GetWindowFlags(_wci.WindowInitialState) | _additionalFlags;
-            if (_wci.WindowInitialState != WindowState.Hidden)
-            {
-                flags |= SDL_WindowFlags.Shown;
-            }
+                    | GetWindowFlags(_wci.WindowInitialState) | _additionalFlags |SDL_WindowFlags.Hidden;
+
             _window = new Sdl2Window(
                 _wci.WindowTitle,
                 _wci.X,
@@ -134,6 +176,41 @@ namespace EditTK.Windowing
             _window.MouseLeft    += () => Hovered = false;
 
             _window.KeyDown += OnKeyDown;
+
+
+            if(Environment.OSVersion.Platform == PlatformID.Win32NT)
+            {
+                //Support dark mode on Windows
+                //ported from https://github.com/libsdl-org/SDL/issues/4776#issuecomment-926976455
+
+                SetWindowTheme(_window.Handle, "DarkMode_Explorer", null);
+
+                if (!DwmSetWindowAttribute(_window.Handle, 20, 1, sizeof(int)))
+                    DwmSetWindowAttribute(_window.Handle, 19, 1, sizeof(int));
+
+
+                _window.Opacity = 0;
+
+                if (_wci.WindowInitialState != WindowState.Hidden)
+                    Sdl2Native.SDL_ShowWindow(_window.SdlWindowHandle);
+
+
+
+                IntPtr hdc = BeginPaint(_window.Handle, out PaintStruct ps);
+                SetBkColor(hdc, BLACK_BRUSH);
+
+                ExtTextOutA(hdc, 0, 0, ETO_OPAQUE, new Rectangle(0, 0, (int)Width, (int)Height), null, 0, 0);
+                EndPaint(_window.Handle, ps);
+
+                Thread.Sleep(100);
+
+                _window.Opacity = 100;
+            }
+            else
+            {
+                if (_wci.WindowInitialState != WindowState.Hidden)
+                    Sdl2Native.SDL_ShowWindow(_window.SdlWindowHandle);
+            }
 
             Console.WriteLine(Sdl2Native.SDL_GetWindowFlags(_window.SdlWindowHandle));
         }
@@ -238,7 +315,7 @@ namespace EditTK.Windowing
 
             ImGui.GetIO().MousePos = InputTracker.MousePosition;
 
-            
+
 
             TimeTracker.Update(deltaSeconds);
 

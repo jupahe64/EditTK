@@ -1,5 +1,5 @@
 ﻿using EditTK.Core.Timing;
-using EditTK.Core.Utils;
+using EditTK.Core.Util;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

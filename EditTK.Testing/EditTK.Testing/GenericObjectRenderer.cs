@@ -1,4 +1,4 @@
-﻿using EditTK.Graphics.Helpers;
+﻿using EditTK.Graphics.Common;
 using System;
 using System.Numerics;
 using Veldrid;
