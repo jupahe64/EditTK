@@ -679,7 +679,7 @@ namespace EditTK.Testing
             ImGui.GetStyle().WindowPadding = new Vector2(0, 0);
 
             ImGui.SetNextWindowPos(new Vector2(0, 0));
-            ImGui.SetNextWindowSize(new Vector2(Width / 2, Height));
+            ImGui.SetNextWindowSize(new Vector2(Width, Height));
 
             ImGui.Begin("Back", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoBringToFrontOnFocus);
 
