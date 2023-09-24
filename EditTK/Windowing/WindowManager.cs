@@ -20,7 +20,7 @@ namespace EditTK.Windowing
         private static readonly List<(IWindow window, WindowResources res)> s_windows = new();
 
         public static void CreateWindow(Vector2D<int> size, InstancePtr instance, AdapterPtr adapter, DevicePtr device,
-            Action<double, TextureViewPtr, ImGuiController> renderWgpuDelegate, out IWindow window)
+            Action<double, TextureViewPtr, ImGuiController> renderWgpuDelegate, out IWindow window, PresentMode presentMode = PresentMode.Fifo)
         {
             var options = WindowOptions.Default;
             options.API = GraphicsAPI.None;
@@ -62,7 +62,7 @@ namespace EditTK.Windowing
                         if(fbSize.X * fbSize.Y > 0)
                         {
                             swapchain = device.CreateSwapChain(surface, TextureUsage.RenderAttachment, swapChainFormat,
-                            (uint)fbSize.X, (uint)fbSize.Y, PresentMode.Immediate);
+                            (uint)fbSize.X, (uint)fbSize.Y, presentMode);
                         }
                     }
 

@@ -1,4 +1,5 @@
-﻿using EditTK.Windowing;
+﻿using EditTK.Utils;
+using EditTK.Windowing;
 using ImGuiNET;
 using Silk.NET.Maths;
 using Silk.NET.WebGPU;
@@ -6,6 +7,7 @@ using Silk.NET.WebGPU.Extensions.ImGui;
 using Silk.NET.WebGPU.Safe;
 using Silk.NET.Windowing;
 using System.Diagnostics;
+using System.Numerics;
 
 namespace EditTK.Testing
 {
@@ -14,6 +16,12 @@ namespace EditTK.Testing
         static async Task Main(string[] args)
         {
             //Environment.SetEnvironmentVariable("RUST_BACKTRACE", "full");
+
+            var q = Quaternion.CreateFromYawPitchRoll(1, 1, 0);
+            var a = Vector3.Transform(Vector3.UnitZ, q);
+            var b = Vector3.UnitZ;
+            q = MathUtils.GetRotationBetween(a, b) * q;
+            var c = Vector3.Transform(Vector3.UnitZ, q);
 
             Console.WriteLine("Initializing Graphics API");
             var webGPU = WebGPU.GetApi();

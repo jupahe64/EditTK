@@ -4,7 +4,18 @@
     <TargetFramework>net7.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="res\InfiniteGrid.wgsl" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="res\InfiniteGrid.wgsl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Silk.NET.WebGPU.Native.WGPU" Version="2.17.1-build3771.0" />
