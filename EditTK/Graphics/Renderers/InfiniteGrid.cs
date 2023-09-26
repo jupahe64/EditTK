@@ -4,23 +4,15 @@ using static Silk.NET.WebGPU.Safe.BindGroupEntries;
 using static Silk.NET.WebGPU.Safe.BindGroupLayoutEntries;
 using Silk.NET.WebGPU.Safe;
 using Safe = Silk.NET.WebGPU.Safe;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Reflection;
 using EditTK.Utils;
 using System.Numerics;
-using Silk.NET.Input;
-using static EditTK.Graphics.Renderers.InfiniteGrid;
+using System.Text.RegularExpressions;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace EditTK.Graphics.Renderers
 {
-    public static class InfiniteGrid
+    public static partial class InfiniteGrid
     {
         private struct Uniforms
         {
@@ -46,7 +38,8 @@ namespace EditTK.Graphics.Renderers
         private static RenderableMesh? s_FadingCircleMesh;
         private static BufferRange s_uniformBuffer;
         private static BindGroupPtr s_bindGroup;
-        private static RenderPipelinePtr s_pipeline;
+        private static RecompilableRenderPipeline? s_RenderPipeline;
+        private static RecompilableShaderModule? s_shaderModule;
         public const TextureFormat OutputFormat = TextureFormat.Rgba8UnormSrgb;
 
         public enum DefaultMesh
@@ -87,15 +80,24 @@ namespace EditTK.Graphics.Renderers
             s_isInitialized = true;
 
             s_FadingCircleMesh = GenerateFadingCircleMesh(device);
-            
 
-            ShaderModulePtr shaderModule;
-            using (var stream = ResourceManager.GetFileFromExeFolder("res", "InfiniteGrid.wgsl"))
+            bool ShaderFileUpdateCallback(byte[] data, out string? errorString)
+            {
+                return 
+                    s_shaderModule!.TryUpdateAndRecompile(device, data, out errorString) &&
+                    s_RenderPipeline!.TryUpdateAndRecompile(device, s_shaderModule, s_shaderModule, out errorString);
+
+            }
+
+            using (var stream = ResourceManager.GetFileFromExeFolder(new string[] { "res", "InfiniteGrid.wgsl" }, 
+                ShaderFileUpdateCallback, out _))
             {
                 Debug.Assert(stream != null);
                 var ms = new MemoryStream();
                 stream.CopyTo(ms);
-                shaderModule = device.CreateShaderModuleWGSL(ms.GetBuffer().AsSpan(0..(int)ms.Length), null);
+
+                s_shaderModule = RecompilableShaderModule.CreateAndCompile(device, ms.GetBuffer().AsSpan(0..(int)ms.Length), 
+                    Array.Empty<Safe.ShaderModuleCompilationHint>());
             }
 
             var bindGroupLayout = device.CreateBindGroupLayout(
@@ -118,10 +120,12 @@ namespace EditTK.Graphics.Renderers
                 new ReadOnlySpan<BindGroupLayoutPtr>(bindGroupLayout)
             );
 
-            s_pipeline = device.CreateRenderPipeline(
+
+
+            s_RenderPipeline = RecompilableRenderPipeline.CreateAndCompile(device, new Safe.RenderPipelineDescriptor(
                 layout: layout,
                 vertex: s_FadingCircleMesh.CreateVertexState(
-                    ("vs_main", shaderModule), 
+                    ("vs_main", s_shaderModule.GetCompiled()),
                     Array.Empty<(string, double)>()
                 ),
                 primitive: new Safe.PrimitiveState
@@ -142,21 +146,21 @@ namespace EditTK.Graphics.Renderers
                 {
                     Constants = Array.Empty<(string, double)>(),
                     EntryPoint = "fs_main",
-                    Module = shaderModule,
+                    Module = s_shaderModule.GetCompiled(),
                     Targets = new Safe.ColorTargetState[]
                     {
-                        new Safe.ColorTargetState
-                        {
-                            Format = OutputFormat,
-                            BlendState = (
-                                color: new BlendComponent(BlendOperation.Add, BlendFactor.SrcAlpha, BlendFactor.OneMinusSrcAlpha),
-                                alpha: new BlendComponent(BlendOperation.Add, BlendFactor.OneMinusDstAlpha, BlendFactor.One)
-                            ),
-                            WriteMask = ColorWriteMask.All
-                        }
+                    new Safe.ColorTargetState
+                    {
+                        Format = OutputFormat,
+                        BlendState = (
+                            color: new BlendComponent(BlendOperation.Add, BlendFactor.SrcAlpha, BlendFactor.OneMinusSrcAlpha),
+                            alpha: new BlendComponent(BlendOperation.Add, BlendFactor.OneMinusDstAlpha, BlendFactor.One)
+                        ),
+                        WriteMask = ColorWriteMask.All
+                    }
                     }
                 }
-            );
+            ));
         }
 
         public static void Draw(DevicePtr device, (TextureViewPtr color, TextureViewPtr depth) targets,
@@ -245,7 +249,7 @@ namespace EditTK.Graphics.Renderers
                 }, null
             );
 
-            pass.SetPipeline(s_pipeline);
+            pass.SetPipeline(s_RenderPipeline!.GetCompiled());
             pass.SetBindGroup(0, s_bindGroup, null);
 
             if(mesh.TryGetT1(out var renderableMesh))
