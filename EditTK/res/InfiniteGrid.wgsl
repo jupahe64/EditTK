@@ -48,7 +48,7 @@ fn AlphaBlend(dst: vec4<f32>, src: vec4<f32>) -> vec4<f32> {
 fn fs_main(v: Varyings, @builtin(front_facing) is_front_facing: bool) -> @location(0) vec4<f32> {
     let uv = vec3(v.TexCoord, 1.0) * ub.TextureTransform;
     let fwyUV = abs(dpdy(uv));
-    let fwUV = fwidth(uv);
+    let fwUV = min(vec2(1.0), fwidth(uv));
 
     let _log = max(-0.5, log(20.0*max(fwyUV.x, fwyUV.y))/log(10.0));
 
