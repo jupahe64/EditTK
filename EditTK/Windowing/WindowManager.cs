@@ -5,6 +5,7 @@ using Silk.NET.WebGPU;
 using Silk.NET.WebGPU.Extensions.ImGui;
 using Silk.NET.WebGPU.Safe;
 using Silk.NET.Windowing;
+using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 
@@ -12,7 +13,7 @@ namespace EditTK.Windowing
 {
     public static class WindowManager
     {
-        private record struct WindowResources(ImGuiController ImguiController, SurfacePtr Surface, SwapChainPtr? SwapChain);
+        private record struct WindowResources(ImGuiController ImguiController, SurfacePtr Surface);
 
         private static bool s_isRunning = false;
 
@@ -44,8 +45,8 @@ namespace EditTK.Windowing
                 var input = _window.CreateInput();
                 var imguiController = new ImGuiController(device, swapChainFormat, _window, input, () => { });
 
-                SwapChainPtr? swapchain = null;
-                var fbSize = new Vector2D<int>();
+                var _last_framebufferSize = new Vector2D<int>();
+                TextureViewPtr? _swapChainView = null;
 
 
                 //rendering/update
@@ -54,23 +55,45 @@ namespace EditTK.Windowing
                 var isRequestShow = true;
                 _window.Render += (deltaSeconds) =>
                 {
-                    if (_window.FramebufferSize != fbSize)
-                    {
-                        fbSize = _window.FramebufferSize;
-                        swapchain?.Release();
+                    var framebufferSize = _window.FramebufferSize;
 
-                        if(fbSize.X * fbSize.Y > 0)
+                    if (framebufferSize.X * framebufferSize.Y == 0)
+                        return;
+
+                    if (_last_framebufferSize != framebufferSize)
+                    {
+                        _last_framebufferSize = framebufferSize;
+
+                        surface.Configure(new Silk.NET.WebGPU.Safe.SurfaceConfiguration
                         {
-                            swapchain = device.CreateSwapChain(surface, TextureUsage.RenderAttachment, swapChainFormat,
-                            (uint)fbSize.X, (uint)fbSize.Y, presentMode);
-                        }
+                            AlphaMode = CompositeAlphaMode.Opaque,
+                            Device = device,
+                            Usage = TextureUsage.RenderAttachment,
+                            Format = swapChainFormat,
+                            ViewFormats = new TextureFormat[] { swapChainFormat },
+                            Width = (uint)framebufferSize.X,
+                            Height = (uint)framebufferSize.Y,
+                            PresentMode = PresentMode.Immediate
+                        });
                     }
+
+                    _swapChainView?.Release();
+
+                    var (swapChainTexture, _, status) = surface.GetCurrentTexture();
+
+                    Debug.Assert(status == SurfaceGetCurrentTextureStatus.Success);
+
+                    _swapChainView = swapChainTexture.CreateView(
+                        swapChainFormat,
+                        TextureViewDimension.Dimension2D, TextureAspect.All,
+                        baseMipLevel: 0, mipLevelCount: 1,
+                        baseArrayLayer: 0, arrayLayerCount: 1, label: "SwapchainView");
 
                     imguiController.MakeCurrent();
 
-                    renderWgpuDelegate.Invoke(deltaSeconds, swapchain!.Value.GetCurrentTextureView(), imguiController);
+                    renderWgpuDelegate.Invoke(deltaSeconds, _swapChainView.Value, imguiController);
 
-                    swapchain!.Value.Present();
+                    surface.Present();
 
                     if (isRequestShow)
                     {
@@ -79,7 +102,7 @@ namespace EditTK.Windowing
                     }
                 };
 
-                s_windows.Add((_window, new WindowResources(imguiController, surface, swapchain)));
+                s_windows.Add((_window, new WindowResources(imguiController, surface)));
             };
 
             s_pendingInits.Add(window);
@@ -126,7 +149,7 @@ namespace EditTK.Windowing
                         window.DoEvents();
                         window.Reset();
 
-                        res.SwapChain?.Release();
+                        res.Surface.Unconfigure();
                         res.Surface.Release();
                         res.ImguiController.Dispose();
 

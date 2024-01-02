@@ -18,10 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Silk.NET.WebGPU.Native.WGPU" Version="2.17.1-build3771.0" />
-    <PackageReference Include="Silk.NET.Windowing" Version="2.17.1-build3771.0" />
-    <PackageReference Include="SilkDotNet.WebGPUWrappers" Version="0.1.0" />
-    <PackageReference Include="SilkDotNet.WebGPUWrappers.ImGui" Version="0.1.0" />
+    <PackageReference Include="Silk.NET.WebGPU.Native.WGPU" Version="2.20.0" />
+    <PackageReference Include="Silk.NET.Windowing" Version="2.20.0" />
+    <PackageReference Include="SilkDotNet.WebGPUWrappers" Version="0.2.0" />
+    <PackageReference Include="SilkDotNet.WebGPUWrappers.ImGui" Version="0.2.0" />
   </ItemGroup>
 
 </Project>
